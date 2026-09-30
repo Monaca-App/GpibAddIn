@@ -1,0 +1,152 @@
+; ==============================================================================
+; GPIB Macro Script
+; 生成AI: Antigravity (Gemini 3.8 Flash)
+; 対象機器: 横河計測株式会社 (YOKOGAWA) GS200 直流電圧/電流源 (GS210シリーズ)
+; 機器名称: YOKO_G200
+; 準拠マニュアル: GS200 直流電圧/電流源 ユーザーズマニュアル (IM GS210-01JA)
+; マニュアルURL: https://cdn.tmi.yokogawa.com/18/6218/files/IMGS210-01JA.pdf
+; 概要: 初期化(INIT)独立化・モニタ測定（単発/連続統合・タイムスタンプ対応）および直流発生制御マクロ
+; ==============================================================================
+TITLE, "YOKO_G200"
+,DEVICEBOARD, 0           ; GPIBボード番号（既定値: 0）
+,DEVICEADDRESS1ST, 1      ; プライマリアドレス（GS200工場出荷時初期値: 1）
+,DEVICEADDRESS2ND, -1     ; セカンダリアドレス（不使用: -1）
+,DELIMITER, 1             ; デリミタ（1: CRLF）
+,EOI, true                ; EOI信号線制御（有効）
+,SERIALSTATUS, 1, "未定義"
+,SERIALSTATUS, 2, "未定義"
+,SERIALSTATUS, 3, "エラー発生 (EAV)"
+,SERIALSTATUS, 4, "疑わしい状態 (QUES)"
+,SERIALSTATUS, 5, "出力メッセージあり (MAV)"
+,SERIALSTATUS, 6, "イベント発生 (ESB)"
+,SERIALSTATUS, 7, "サービス要求 (RQS/MSS)"
+,SERIALSTATUS, 8, "動作状態 (OPER)"
+
+; ==============================================================================
+; コマンド定義 1: 独立初期化マクロ (INIT)
+; 通信ボードのオープン、機器リセット、基本設定を行い、測定の繰り返し実行に備える
+; ==============================================================================
+COMMAND, "INIT"
+; --- 処理手順定義 (SEQUENCE) ---
+,SEQUENCE, 10, Open
+,SEQUENCE, 20, Init
+,SEQUENCE, 30, Send, "*CLS"
+,SEQUENCE, 40, Send, "*RST"
+,SEQUENCE, 50, Exit
+
+; ==============================================================================
+; コマンド定義 2: 電圧モニタ測定マクロ (MEAS_VOLT)
+; 初期化済みセッション上で繰り返し実行可能。単発測定は「取得回数=1」で兼用し即時終了
+; ==============================================================================
+COMMAND, "MEAS_VOLT", "RESULT_DATA"
+; --- パラメータ定義 (PARAM) ---
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "200", "500", "1000", "2000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ", "false", "true"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "5.000000"
+; --- 処理手順定義 (SEQUENCE) ---
+,SEQUENCE, 10, TimeStamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Send, ":SENSe:FUNCtion VOLT"
+,SEQUENCE, 30, ParamSet, "MEAS_VOLT", "0", "LOOP_CNT"
+; --- 測定ループ先頭 ---
+,SEQUENCE, #LOOP_START#, Send, ":MEASure?"
+,SEQUENCE, 50, DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Receive
+,SEQUENCE, 70, WaitData, #TIMEOUT#
+; --- タイムスタンプ判定 ---
+,SEQUENCE, 80, Equ, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, SetData_RowAdd, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.6f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, SetData_RowAdd, "RESULT_DATA", "R:%f", "%0.6f"
+; --- 回数到達判定（規定回数到達時はWaitをスキップして即時終了）---
+,SEQUENCE, #CHECK_COUNT#, Add, "MEAS_VOLT", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了・エラー処理 ---
+,SEQUENCE, #TIMEOUT#, MsgBox, "測定データ受信でタイムアウトが発生しました。", "エラー", "OK"
+,SEQUENCE, #FINISH#, TimeStamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; コマンド定義 3: 電流モニタ測定マクロ (MEAS_CURR)
+; 初期化済みセッション上で繰り返し実行可能。単発測定は「取得回数=1」で兼用し即時終了
+; ==============================================================================
+COMMAND, "MEAS_CURR", "RESULT_DATA"
+; --- パラメータ定義 (PARAM) ---
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "200", "500", "1000", "2000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ", "false", "true"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "0.020000"
+; --- 処理手順定義 (SEQUENCE) ---
+,SEQUENCE, 10, TimeStamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Send, ":SENSe:FUNCtion CURR"
+,SEQUENCE, 30, ParamSet, "MEAS_CURR", "0", "LOOP_CNT"
+; --- 測定ループ先頭 ---
+,SEQUENCE, #LOOP_START#, Send, ":MEASure?"
+,SEQUENCE, 50, DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Receive
+,SEQUENCE, 70, WaitData, #TIMEOUT#
+; --- タイムスタンプ判定 ---
+,SEQUENCE, 80, Equ, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, SetData_RowAdd, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.6f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, SetData_RowAdd, "RESULT_DATA", "R:%f", "%0.6f"
+; --- 回数到達判定（規定回数到達時はWaitをスキップして即時終了）---
+,SEQUENCE, #CHECK_COUNT#, Add, "MEAS_CURR", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了・エラー処理 ---
+,SEQUENCE, #TIMEOUT#, MsgBox, "測定データ受信でタイムアウトが発生しました。", "エラー", "OK"
+,SEQUENCE, #FINISH#, TimeStamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; コマンド定義 4: 直流電圧発生設定 (SRC_VOLT)
+; ==============================================================================
+COMMAND, "SRC_VOLT"
+; --- パラメータ定義 (PARAM) ---
+,PARAM, "RANGE", List, "電圧レンジ", "10V", "10mV", "100mV", "1V", "10V", "30V"
+,PARAM, "LEVEL", Value, "出力電圧値(V)", "0.0"
+; --- 処理手順定義 (SEQUENCE) ---
+,SEQUENCE, 10, Send, ":SOURce:FUNCtion VOLT"
+,SEQUENCE, 20, Send, ":SOURce:RANGe $RANGE$"
+,SEQUENCE, 30, Send, ":SOURce:LEVel $LEVEL$"
+,SEQUENCE, 40, Exit
+
+; ==============================================================================
+; コマンド定義 5: 直流電流発生設定 (SRC_CURR)
+; ==============================================================================
+COMMAND, "SRC_CURR"
+; --- パラメータ定義 (PARAM) ---
+,PARAM, "RANGE", List, "電流レンジ", "100mA", "1mA", "10mA", "100mA", "200mA"
+,PARAM, "LEVEL", Value, "出力電流値(A)", "0.0"
+; --- 処理手順定義 (SEQUENCE) ---
+,SEQUENCE, 10, Send, ":SOURce:FUNCtion CURR"
+,SEQUENCE, 20, Send, ":SOURce:RANGe $RANGE$"
+,SEQUENCE, 30, Send, ":SOURce:LEVel $LEVEL$"
+,SEQUENCE, 40, Exit
+
+; ==============================================================================
+; コマンド定義 6: 出力ON/OFF制御 (OUTPUT)
+; ==============================================================================
+COMMAND, "OUTPUT"
+; --- パラメータ定義 (PARAM) ---
+,PARAM, "STATE", List, "出力状態", "OFF", "OFF", "ON"
+; --- 処理手順定義 (SEQUENCE) ---
+,SEQUENCE, 10, Send, ":OUTPut:STATe $STATE$"
+,SEQUENCE, 20, Exit
+
+; ==============================================================================
+; コマンド定義 7: 通信終了・解放マクロ (CLOSE)
+; 全計測作業完了時に通信ボードを安全に閉じる
+; ==============================================================================
+COMMAND, "CLOSE"
+; --- 処理手順定義 (SEQUENCE) ---
+,SEQUENCE, 10, Close
+,SEQUENCE, 20, Exit
