@@ -133,3 +133,4 @@ COMMAND, "Measure_Read_Macro"
 | :--- | :--- | :--- | :--- | :--- |
 | **1** | 正常系 | `IsRetryNeeded` に対し、<br>・`attempt = 1, maxRetries = 3, isSuccess = false`<br>・`attempt = 2, maxRetries = 3, isSuccess = false`<br>・`attempt = 3, maxRetries = 3, isSuccess = false`<br>・`attempt = 1, maxRetries = 3, isSuccess = true` | 戻り値:<br>・`true`<br>・`true`<br>・`false`<br>・`false` | 試行回数、最大リトライ回数、成否状態に基づいてリトライが必要であるかどうかが正しく論理判定されるかを検証。 |
 | **2** | 正常系 | `GetButtonUiState` に対し、<br>・`true` （処理中）を入力<br>・`false` （非処理中）を入力 | 戻り値:<br>・`true` 入力時は `Enabled` が `false`、`BackColor` が `Color.Aqua`<br>・`false` 入力時は `Enabled` が `true`、`BackColor` が `Color.Gainsboro` | 送受信処理状態に応じた受信ボタン（RECボタン）のUI制御状態（有効化フラグ、背景色）が正しく取得できるかを検証。 |
+| **3** | 正常系 | `CanReceiveData` に対し、<br>・`true` （ポートオープン）を入力<br>・`false` （ポート未オープン）を入力 | 戻り値:<br>・`true`<br>・`false` | 回線接続状態（オープン/クローズ）に基づき、受信処理の開始可否が正しく判定されるかを検証。 |

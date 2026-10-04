@@ -113,3 +113,4 @@ COMMAND, "Device_Reset_Macro"
 | **2** | 正常系 | `CanSendSdc` に対し、非リモート（ローカル状態）の `GpibDevice` オブジェクトを入力 | 戻り値: `false` | 機器がリモート制御状態で設定されていない場合に、SDC送信不可と正しく判定されるかを検証。 |
 | **3** | 正常系 | `CanSendSdc` に対し、リモート状態の `GpibDevice` オブジェクトを入力 | 戻り値: `true` | 機器がリモート制御状態で設定されている場合に、SDC送信可能と正しく判定されるかを検証。 |
 | **4** | 正常系 | `GetButtonUiState` に対し、<br>・`true` （処理中）を入力<br>・`false` （非処理中）を入力 | 戻り値:<br>・`true` 入力時は `Enabled` が `false`、`BackColor` が `Color.Aqua`<br>・`false` 入力時は `Enabled` が `true`、`BackColor` が `Color.Gainsboro` | 送受信処理状態に応じたSDCボタンのUI制御状態（有効化フラグ、背景色）が正しく取得できるかを検証。 |
+| **5** | 正常系 | `CanSendSdc` に対し、リモート状態の `GpibDevice` オブジェクトと `isPortOpen = false` を入力 | 戻り値: `false` | ポートがクローズ状態の場合、機器がリモートであってもSDC送信不可と正しく判定されるかを検証。 |

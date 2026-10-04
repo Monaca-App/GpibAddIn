@@ -111,3 +111,4 @@ COMMAND, "Setup_Remote_Macro"
 | :--- | :--- | :--- | :--- | :--- |
 | **1** | 正常系 | `ResolveRenStatus` に対し、<br>・`ButtonStatus.On`, `currentRenStatus = false`<br>・`ButtonStatus.Off`, `currentRenStatus = true`<br>・`ButtonStatus.Flicker`, `currentRenStatus = false`<br>・`ButtonStatus.Flicker`, `currentRenStatus = true` | 戻り値:<br>・`true`<br>・`false`<br>・`true`<br>・`false` | 対象のボタンステータス（`On`/`Off`/`Flicker`）と現在の REN 状態から、新しい REN の状態（On/Off）が正しく解決されるかを検証。 |
 | **2** | 正常系 | `GetRenButtonColor` に対し、<br>・`true` を入力<br>・`false` を入力 | 戻り値:<br>・`Color.Aqua`<br>・`Color.Gainsboro` | REN 状態に応じたボタン背景色が正しく取得できるかを検証。 |
+| **3** | 正常系 | `CanSetRen` に対し、<br>・`true` （ポートオープン）を入力<br>・`false` （ポート未オープン）を入力 | 戻り値:<br>・`true`<br>・`false` | 回線接続状態（オープン/クローズ）に基づき、REN設定処理の実行可否が正しく判定されるかを検証。 |

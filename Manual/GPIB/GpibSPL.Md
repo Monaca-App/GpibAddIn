@@ -121,3 +121,4 @@ COMMAND, "Wait_Measurement_Complete"
 | **1** | 正常系 | `IsDeviceValid` に対し、`null` を入力 | 戻り値: `false` | デバイス情報が `null` の場合に、デバイス無効と正しく判定されるかを検証。 |
 | **2** | 正常系 | `IsDeviceValid` に対し、インスタンス化された `GpibDevice` オブジェクトを入力 | 戻り値: `true` | 有効なデバイス情報が存在する場合に、デバイス有効と正しく判定されるかを検証。 |
 | **3** | 正常系 | `GetButtonUiState` に対し、<br>・`true` （処理中）を入力<br>・`false` （非処理中）を入力 | 戻り値:<br>・`true` 入力時は `Enabled` が `false`、`BackColor` が `Color.Aqua`<br>・`false` 入力時は `Enabled` が `true`、`BackColor` が `Color.Gainsboro` | 送受信処理状態に応じたSPLボタンのUI制御状態（有効化フラグ、背景色）が正しく取得できるかを検証。 |
+| **4** | 正常系 | `CanPoll` に対し、有効な `GpibDevice` と<br>・`isPortOpen = true`<br>・`isPortOpen = false` を入力 | 戻り値:<br>・`true`<br>・`false` | 回線接続状態（オープン/クローズ）に基づき、シリアルポーリング実行の可否が正しく判定されるかを検証。 |
