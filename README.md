@@ -16,18 +16,18 @@
 
 **GpibAddIn** は、Microsoft Excel のワークシート上から GPIB 接続された電子計測機器・電源・各種デバイスの制御シーケンスを構築・実行・データ収集できる Excel VSTO アドインです。
 
-プログラミング言語による面倒なコーディングやマクロ（VBA）の開発を行うことなく、**使い慣れた Excel のセルにコマンドとパラメータを入力するだけ**で、機器へのコマンド送信、待機時間（ウェイト）、測定値のセル自動展開、一括シーケンス実行がすべて Excel 上で完結します。
+プログラミング言語による面倒なコーディングやマクロ（VBA）の開発を行うことなく、 **使い慣れた Excel のセルにコマンドとパラメータを入力するだけ** で、機器へのコマンド送信、待機時間（ウェイト）、測定値のセル自動展開、一括シーケンス実行がすべて Excel 上で完結します。
 
 > [!IMPORTANT]
 > ### 💡 本アドイン最大の設計思想・特長
 > **「VBAマクロに一切依存せず、VSTO側からActiveXコントロールを動的バインドすることで、標準のマクロ無効ブック形式（`.xlsx`）のままでシーケンスボタンを配置・保存・動作できる」**
 > 
-> * **セキュリティ警告・ブロックの完全回避**: 近年の Windows / Office 環境ではマクロ有効ブック（`.xlsm`）に対するセキュリティ制限（信頼できない発行元のブロック、インターネット属性・MOTW によるマクロ強制停止等）が極めて厳格化されています。本アドインはブック側に一切のマクロ（VBA）を含まないため、**標準の `.xlsx` ファイルとして何らセキュリティ警告を受けることなく安全に作成・保存・運用・社内共有** できます。
+> * **セキュリティ警告・ブロックの完全回避**: 近年の Windows / Office 環境ではマクロ有効ブック（`.xlsm`）に対するセキュリティ制限（信頼できない発行元のブロック、インターネット属性・MOTW によるマクロ強制停止等）が極めて厳格化されています。本アドインはブック側に一切のマクロ（VBA）を含まないため、 **標準の `.xlsx` ファイルとして何らセキュリティ警告を受けることなく安全に作成・保存・運用・社内共有** できます。
 > * **VBE・マクロ保守の手間ゼロ**: Excel のバージョン差異による VBE 参照設定エラーやマクロコード破損のリスクがなく、長期にわたる測定システムの安定稼働を実現します。
 
 > [!NOTE]
 > **詳細マニュアルのご案内**  
-> 各種機能の詳しい使い方や詳細仕様については、[GpibAddIn 取扱説明マニュアル](Manual/GpibAddInManual.Md) をご参照ください。
+> 各種機能の詳しい使い方や詳細仕様については、[GpibAddIn 取扱説明マニュアル](./GpibAddIn/Manual/GpibAddInManual.Md) をご参照ください。
 
 ---
 
@@ -189,10 +189,50 @@ Excel リボンメニューの **「ツール起動 (`ToolOpen`)」** ボタン�
 | 項目 | 要件 |
 | :--- | :--- |
 | **OS** | Windows 10 / Windows 11 (64bit / 32bit) |
-| **対応 Excel** | Microsoft Excel 2016 / 2019 / 2021 / Microsoft 365 (デスクトップ版) |
+| **対応 Excel** | Microsoft Excel 2016 / 2019 / 2021 / Microsoft 365 (デスクトップ版 32bit / 64bit) |
 | **ランタイム** | .NET Framework 4.8<br>Visual Studio 2010 Tools for Office Runtime (VSTO ランタイム) |
 | **対応ハードウェア** | CONTEC 社製 GPIB 通信ボード・USB-GPIB 変換器<br>Interface 社製 GPIB 通信ボード |
 | **ディスプレイ** | 推奨解像度: **Full HD (1920 × 1080) 以上**（最小動作解像度: 1280 × 720）<br>対応スケーリング: **100%、125%、150%、175%、200%**（Per-Monitor DPI V2 対応） |
+
+### ⚙️ Excel 32bit / 64bit 環境における動作対応と制限事項
+
+本アドインは `.NET Framework 4.8` かつ `AnyCPU` でビルドされており、Excel 32bit 版および 64bit 版の双方でアドイン本体（リボンUI、ActiveX ボタン連携、シート上のシーケンス作成・編集）が動作します。  
+ただし、**実機機器制御を行うドライバー DLL（ネイティブ DLL）のアーキテクチャ制約** により、以下の通り動作可否および制限事項が存在します。
+
+#### 【Excel 32bit / 64bit 動作対応マトリクス】
+
+| 運用モード / ドライバー | Excel 32bit 版 | Excel 64bit 版 | 詳細・主要制約 |
+| :--- | :---: | :---: | :--- |
+| **シミュレーション（Debugモード）** | **◯ 完全動作** | **◯ 完全動作** | 物理ドライバー DLL をロードしないため、ビット数制限なく完全動作します。 |
+| **CONTEC 製（`CGPIB.DLL`）** | **◯ 完全動作** | **△ 条件付き動作**<br>（要 64bit ドライバ） | 64bit Excel では CONTEC 公式の **64bit 対応ドライバ（API-GPIB x64）** の導入が必須です。32bit 専用ドライバ環境ではロードエラーとなります。 |
+| **Interface 製（`gpc4304.dll`）** | **◯ 完全動作** | **✕ 非対応（動作不可）** | Interface 社製ライブラリ（`gpc4304.dll`）は 32bit 専用であり、64bit Excel プロセスからは直接ロードできません。 |
+
+---
+
+#### 1. シミュレーション時（Debugモード）の制限事項
+* **Excel 32bit 環境**:
+  * 物理ドライバー DLL をロードしないため、問題なく完全動作します。
+* **Excel 64bit 環境**:
+  * 物理ドライバー DLL をロードしないため、ビット数の影響を受けず問題なく完全動作します（ハードウェアやドライバーが未導入の 64bit 環境でもシーケンス作成やUI・セル展開の検証が可能です）。
+* **共通制限事項**:
+  * 実機ボードや計測機器に対する物理的な電気信号送受信は行われず、内部エミュレーター（`SimulationGpibDriver`）による擬似応答で処理されます。
+  * 機器ごとの厳密な測定待ち時間、通信タイムアウト、ハードウェア固有のエラーコード、および SRQ / STB（ステータスバイト）の物理割り込み挙動は再現されません。
+
+#### 2. CONTEC 製ドライバー（`CGPIB.DLL`）の制限事項
+* **Excel 32bit 環境**:
+  * 32bit / 64bit OS のいずれであっても、CONTEC の標準ドライバー（API-GPIB(WDM)）が導入されていれば問題なく安定動作します。
+* **Excel 64bit 環境**:
+  * CONTEC 公式の **64bit 対応版ドライバー（API-GPIB(WDM) for Windows x64 等）** が PC に導入されている環境でのみ動作します（同名の `CGPIB.DLL` が `C:\Windows\System32` から自動ロードされます）。
+  * **制限事項**: 32bit 版ドライバーのみが導入されている環境では、64bit Excel から呼び出そうとすると `BadImageFormatException`（32bit プラットフォーム用 DLL 読み込み不可）が発生し、通信開始時にエラーとなります。
+
+#### 3. Interface 製ドライバー（`gpc4304.dll`）の制限事項
+* **Excel 32bit 環境**:
+  * 32bit / 64bit OS のいずれであっても、Interface の標準ドライバー（GPC-4301N / GPC-4304 等）が導入されていれば問題なく安定動作します。
+* **Excel 64bit 環境**:
+  * Interface 社の GPIB ライブラリ（`gpc4304.dll` / GPC-4301N 等）は 32bit 専用バイナリであり、メーカー公式サポートが終了（EOL）しているため、64bit Excel プロセスからは直接ロードできず非対応（動作不可）となります（実行時に `BadImageFormatException` が発生します）。
+  * **制限事項**: **Interface 製 GPIB ハードウェアで実機自動測定を行う場合は、必ず Excel 32bit 環境にて運用してください**。
+
+---
 
 ### 🖥️ 高解像度（高DPI）モニタ環境における推奨事項・制限事項
 
@@ -207,7 +247,7 @@ Excel リボンメニューの **「ツール起動 (`ToolOpen`)」** ボタン�
 
 ## 🚀 インストール手順
 
-<a href="https://github.com/Monaca-App/GpibAddIn/releases/download/0.9.1/publish.7z">
+<a href="https://github.com/Monaca-App/GpibAddIn/releases/download/0.9.2/publish.7z">
   <img src="images/Monaca_app_get.jpg" width="140" alt="プログラム（入手）" />
 </a>
 
@@ -351,16 +391,16 @@ GpibAddIn で実行される制御コマンドや機器定義は、独自の階�
 
 ### 4. AI（LLM）によるマクロスクリプト自動生成プロンプト
 機器のマニュアル（取扱説明書）をもとに、ChatGPT や Claude、Gemini などの AI にマクロスクリプト（CSV）を自動生成させるための専用指示書プロンプトが同梱されています。  
-独自の機器プロンプトやスクリプトを新規作成する方法については、**[`ListSample/指示書.txt`](ListSample/指示書.txt)** を参考にしてください。
+独自の機器プロンプトやスクリプトを新規作成する方法については、**[`ListSample/指示書.txt`](./GpibAddIn/ListSample/指示書.txt)** を参考にしてください。
 
-* **[`ListSample/指示書.txt`](ListSample/指示書.txt)**: AI プロンプトおよびマクロスクリプト自動生成の指示書・作成手順
-* **[`ListSample/general_prompt.md`](ListSample/general_prompt.md)**: 共通 GPIB 制御（Open/Close/DCL/IFC/REN 等）生成プロンプト
-* **[`ListSample/AG_3458a_prompt.md`](ListSample/AG_3458a_prompt.md)**: 8½桁 高確度デジタルマルチメータ（Keysight/Agilent 3458A）用のコマンドマクロ自動生成プロンプト
-* **[`ListSample/hp34401a_prompt.md`](ListSample/hp34401a_prompt.md)**: 6½桁 デジタルマルチメータ（HP 34401A）用のコマンドマクロ自動生成プロンプト
-* **[`ListSample/Yoko_G200_prompt.md`](ListSample/Yoko_G200_prompt.md)**: 直流電圧・電流源（YOKOGAWA GS200）用のコマンドマクロ自動生成プロンプト
+* **[`ListSample/指示書.txt`](./GpibAddIn/ListSample/指示書.txt)**: AI プロンプトおよびマクロスクリプト自動生成の指示書・作成手順
+* **[`ListSample/general_prompt.md`](./GpibAddIn/ListSample/general_prompt.md)**: 共通 GPIB 制御（Open/Close/DCL/IFC/REN 等）生成プロンプト
+* **[`ListSample/AG_3458a_prompt.md`](./GpibAddIn/ListSample/AG_3458a_prompt.md)**: 8½桁 高確度デジタルマルチメータ（Keysight/Agilent 3458A）用のコマンドマクロ自動生成プロンプト
+* **[`ListSample/hp34401a_prompt.md`](./GpibAddIn/ListSample/hp34401a_prompt.md)**: 6½桁 デジタルマルチメータ（HP 34401A）用のコマンドマクロ自動生成プロンプト
+* **[`ListSample/Yoko_G200_prompt.md`](./GpibAddIn/ListSample/Yoko_G200_prompt.md)**: 直流電圧・電流源（YOKOGAWA GS200）用のコマンドマクロ自動生成プロンプト
 
 ### 5. Excel サンプルブック (`Book1.xlsx`)
-シーケンス行や実行ボタンがあらかじめ配置された Excel のサンプルファイルとして、**[`ListSample/Book1.xlsx`](ListSample/Book1.xlsx)** が同梱されています。  
+シーケンス行や実行ボタンがあらかじめ配置された Excel のサンプルファイルとして、**[`ListSample/Book1.xlsx`](./GpibAddIn/ListSample/Book1.xlsx)** が同梱されています。  
 本サンプルブックを実行する際は、事前にプロパティ画面（「コマンド選択」タブ）から **`General.csv`**（共通制御用）と **`AG_3458a.csv`**（3458A デジタルマルチメータ用）を読み込ませてください。  
 アドイン導入後、本ファイルを開くことで実際の動作イメージの確認やテスト実行をすぐにお試しいただけます。
 
@@ -370,7 +410,7 @@ GpibAddIn で実行される制御コマンドや機器定義は、独自の階�
 
 アドインのスタイル設定や通信設定は、以下の設定ファイルにて一元管理されています。
 
-* **設定ファイルパス**: `%USERPROFILE%\Desktop\Monaca\Setting.xml`（`C:\Users\<ユーザー名>\Desktop\Monaca\Setting.xml`）
+* **設定ファイルパス**: `%USERPROFILE%\Desktop\Monaca\Setting.xml`（`<USER_DIR>\Desktop\Monaca\Setting.xml`）
   * ※ デスクトップ上の `Monaca` フォルダがデフォルトの配置先となります。
   * ※ 購入後にメール（送信元: `sales@monaca-app-store.com`）で届くライセンスファイル（`GpibAddIn.License`）も本設定ファイルと同じフォルダ（`%USERPROFILE%\Desktop\Monaca\`）に配置します。
 * **主な設定項目**:
