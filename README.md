@@ -27,7 +27,7 @@
 
 > [!NOTE]
 > **詳細マニュアルのご案内**  
-> 各種機能の詳しい使い方や詳細仕様については、[GpibAddIn 取扱説明マニュアル](./GpibAddIn/Manual/GpibAddInManual.Md) をご参照ください。
+> 各種機能の詳しい使い方や詳細仕様については、[GpibAddIn 取扱説明マニュアル](./Manual/GpibAddInManual.Md) をご参照ください。
 
 ---
 
@@ -287,7 +287,7 @@ Excel リボンメニューの **「ツール起動 (`ToolOpen`)」** ボタン�
 
 > [!TIP]
 > **サンプルブックですぐに確認する場合**  
-> 動作確認用の Excel サンプルとして **[`ListSample/Book1.xlsx`](ListSample/Book1.xlsx)** が同梱されています。あらかじめシーケンス配置や実行ボタンが設定されています。実行する際は、事前にプロパティ画面から **`General.csv`** と **`AG_3458a.csv`** を読み込ませてください。開くだけで実際の動作イメージを確認できます。
+> 動作確認用の Excel サンプルとして **[`ListSample/Book1.xlsx`](./ListSample/Book1.xlsx)** が同梱されています。あらかじめシーケンス配置や実行ボタンが設定されています。実行する際は、事前にプロパティ画面から **`General.csv`** と **`AG_3458a.csv`** を読み込ませてください。開くだけで実際の動作イメージを確認できます。
 
 ### ステップ 1: GPIBマクロスクリプトの登録
 1. **メイン画面の起動**: Excel リボンメニューの **「ツール起動 (ToolOpen)」** をクリックしてメイン画面を開きます。
@@ -391,16 +391,16 @@ GpibAddIn で実行される制御コマンドや機器定義は、独自の階�
 
 ### 4. AI（LLM）によるマクロスクリプト自動生成プロンプト
 機器のマニュアル（取扱説明書）をもとに、ChatGPT や Claude、Gemini などの AI にマクロスクリプト（CSV）を自動生成させるための専用指示書プロンプトが同梱されています。  
-独自の機器プロンプトやスクリプトを新規作成する方法については、**[`ListSample/指示書.txt`](./GpibAddIn/ListSample/指示書.txt)** を参考にしてください。
+独自の機器プロンプトやスクリプトを新規作成する方法については、**[`ListSample/指示書.txt`](./ListSample/指示書.txt)** を参考にしてください。
 
-* **[`ListSample/指示書.txt`](./GpibAddIn/ListSample/指示書.txt)**: AI プロンプトおよびマクロスクリプト自動生成の指示書・作成手順
-* **[`ListSample/general_prompt.md`](./GpibAddIn/ListSample/general_prompt.md)**: 共通 GPIB 制御（Open/Close/DCL/IFC/REN 等）生成プロンプト
-* **[`ListSample/AG_3458a_prompt.md`](./GpibAddIn/ListSample/AG_3458a_prompt.md)**: 8½桁 高確度デジタルマルチメータ（Keysight/Agilent 3458A）用のコマンドマクロ自動生成プロンプト
-* **[`ListSample/hp34401a_prompt.md`](./GpibAddIn/ListSample/hp34401a_prompt.md)**: 6½桁 デジタルマルチメータ（HP 34401A）用のコマンドマクロ自動生成プロンプト
-* **[`ListSample/Yoko_G200_prompt.md`](./GpibAddIn/ListSample/Yoko_G200_prompt.md)**: 直流電圧・電流源（YOKOGAWA GS200）用のコマンドマクロ自動生成プロンプト
+* **[`ListSample/指示書.txt`](./ListSample/指示書.txt)**: AI プロンプトおよびマクロスクリプト自動生成の指示書・作成手順
+* **[`ListSample/general_prompt.md`](./ListSample/general_prompt.md)**: 共通 GPIB 制御（Open/Close/DCL/IFC/REN 等）生成プロンプト
+* **[`ListSample/AG_3458a_prompt.md`](./ListSample/AG_3458a_prompt.md)**: 8½桁 高確度デジタルマルチメータ（Keysight/Agilent 3458A）用のコマンドマクロ自動生成プロンプト
+* **[`ListSample/HP_34401_prompt.md`](./ListSample/HP_34401_prompt.md)**: 6½桁 デジタルマルチメータ（HP 34401A）用のコマンドマクロ自動生成プロンプト
+* **[`ListSample/Yoko_G200_prompt.md`](./ListSample/Yoko_G200_prompt.md)**: 直流電圧・電流源（YOKOGAWA GS200）用のコマンドマクロ自動生成プロンプト
 
 ### 5. Excel サンプルブック (`Book1.xlsx`)
-シーケンス行や実行ボタンがあらかじめ配置された Excel のサンプルファイルとして、**[`ListSample/Book1.xlsx`](./GpibAddIn/ListSample/Book1.xlsx)** が同梱されています。  
+シーケンス行や実行ボタンがあらかじめ配置された Excel のサンプルファイルとして、**[`ListSample/Book1.xlsx`](./ListSample/Book1.xlsx)** が同梱されています。  
 本サンプルブックを実行する際は、事前にプロパティ画面（「コマンド選択」タブ）から **`General.csv`**（共通制御用）と **`AG_3458a.csv`**（3458A デジタルマルチメータ用）を読み込ませてください。  
 アドイン導入後、本ファイルを開くことで実際の動作イメージの確認やテスト実行をすぐにお試しいただけます。
 
