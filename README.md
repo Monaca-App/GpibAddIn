@@ -1,4 +1,4 @@
-<img src="images/Monaca_store.png" align="right" width="130" alt="Monaca Mascot" />
+﻿<img src="images/Monaca_store.png" align="right" width="130" alt="Monaca Mascot" />
 
 # GpibAddIn - Excel GPIB 機器制御・自動計測アドイン
 
@@ -247,7 +247,7 @@ Excel リボンメニューの **「ツール起動 (`ToolOpen`)」** ボタン�
 
 ## 🚀 インストール手順
 
-<a href="https://github.com/Monaca-App/GpibAddIn/releases/download/0.9.2/publish.7z">
+<a href="https://github.com/Monaca-App/GpibAddIn/releases/download/0.9.5/publish.7z">
   <img src="images/Monaca_app_get.jpg" width="140" alt="プログラム（入手）" />
 </a>
 
