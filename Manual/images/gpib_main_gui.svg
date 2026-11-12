@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600">
+  <defs>
+    <filter id="winShadow" x="-3%" y="-3%" width="106%" height="108%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#0F172A" flood-opacity="0.18" />
+    </filter>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1E3A8A" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+    <linearGradient id="toolGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F8FAFC" />
+      <stop offset="100%" stop-color="#E2E8F0" />
+    </linearGradient>
+    <radialGradient id="ledGreen" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#86EFAC" />
+      <stop offset="55%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#15803D" />
+    </radialGradient>
+    <style>
+      .ui { font-family: 'Yu Gothic UI', 'Meiryo UI', 'Segoe UI', sans-serif; }
+      .mono { font-family: 'Consolas', 'BIZ UDGothic', 'MS Gothic', monospace; }
+      .tb-btn { fill: #FFFFFF; stroke: #CBD5E1; stroke-width: 1; rx: 3; }
+      .bus-btn { fill: #FFFFFF; stroke: #64748B; stroke-width: 1.2; rx: 3; }
+      .dev-btn { fill: #FFFFFF; stroke: #94A3B8; stroke-width: 1.1; rx: 3; }
+      .badge-circle { fill: #E8590C; stroke: #FFFFFF; stroke-width: 2; }
+      .badge-num { font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; font-size: 12.5px; font-weight: 700; fill: #FFFFFF; text-anchor: middle; dominant-baseline: central; }
+      .callout-box { fill: #FFFBEB; stroke: #F59E0B; stroke-width: 1.3; rx: 6; }
+      .callout-title { font-family: 'Yu Gothic UI', 'Meiryo UI', sans-serif; font-size: 11.5px; font-weight: 700; fill: #92400E; }
+      .callout-txt { font-family: 'Yu Gothic UI', 'Meiryo UI', sans-serif; font-size: 11px; fill: #451A03; }
+    </style>
+  </defs>
+
+  <!-- 背景 -->
+  <rect x="0" y="0" width="960" height="600" fill="#F8FAFC" rx="10" />
+
+  <!-- Monaca GPIB メイン画面 (ポート接続時・全制御パネル表示状態: 564 x 544) -->
+  <g transform="translate(24, 26)" filter="url(#winShadow)">
+    <rect x="0" y="0" width="564" height="544" rx="7" fill="#F3F4F6" stroke="#94A3B8" stroke-width="1.5" />
+    <!-- タイトルバー -->
+    <path d="M 0 7 Q 0 0 7 0 L 557 0 Q 564 0 564 7 L 564 32 L 0 32 Z" fill="url(#titleGrad)" />
+    <rect x="12" y="8" width="18" height="16" rx="3" fill="#0F172A" stroke="#38BDF8" stroke-width="1" />
+    <text x="21" y="19" class="mono" font-size="8" font-weight="700" fill="#4ADE80" text-anchor="middle">488</text>
+    <text x="38" y="21" class="ui" font-size="13" font-weight="700" fill="#FFFFFF">Monaca GPIB</text>
+
+    <g stroke="#E2E8F0" stroke-width="1.4" fill="none">
+      <line x1="482" y1="17" x2="493" y2="17" />
+      <rect x="510" y="11" width="10" height="10" />
+      <line x1="538" y1="11" x2="548" y2="21" />
+      <line x1="548" y1="11" x2="538" y2="21" />
+    </g>
+
+    <!-- ① メニューバー (全6項目) -->
+    <rect x="1" y="32" width="562" height="26" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1" />
+    <text x="12" y="49" class="ui" font-size="11.5" fill="#1E293B">ファイル(F)</text>
+    <text x="82" y="49" class="ui" font-size="11.5" fill="#1E293B">通信ポート(C)</text>
+    <text x="166" y="49" class="ui" font-size="11.5" fill="#1E293B">フォント(F)</text>
+    <rect x="232" y="34" width="76" height="22" rx="3" fill="#DBEAFE" />
+    <text x="239" y="49" class="ui" font-size="11.5" font-weight="700" fill="#1D4ED8">環境設定...</text>
+    <text x="318" y="49" class="ui" font-size="11.5" fill="#1E293B">時刻表示</text>
+    <text x="380" y="49" class="ui" font-size="11.5" fill="#1E293B">ヘルプ(H)</text>
+
+    <!-- ② ツールバー + 右端 LED 接続ランプ (lblConnectLamp) -->
+    <rect x="1" y="58" width="562" height="38" fill="url(#toolGrad)" stroke="#CBD5E1" stroke-width="1" />
+    <g transform="translate(10, 64)">
+      <!-- 終了 | ログ開く・閉じる | ポート開く・閉じる | プロパティ・テキスト送信▼ | エディタ・実行▶▼・停止■ -->
+      <rect x="0" y="0" width="26" height="26" class="tb-btn" />
+      <path d="M 8 13 L 18 13 M 15 10 L 18 13 L 15 16" stroke="#DC2626" stroke-width="1.5" fill="none" />
+      <line x1="31" y1="3" x2="31" y2="23" stroke="#CBD5E1" stroke-width="1.2" />
+
+      <rect x="36" y="0" width="26" height="26" class="tb-btn" />
+      <path d="M 42 8 L 48 8 L 50 10 L 56 10 L 56 20 L 42 20 Z" fill="#FDE68A" stroke="#D97706" stroke-width="1.3" />
+      <rect x="65" y="0" width="26" height="26" class="tb-btn" />
+      <rect x="71" y="9" width="14" height="11" fill="#E2E8F0" stroke="#94A3B8" stroke-width="1.2" />
+      <line x1="96" y1="3" x2="96" y2="23" stroke="#CBD5E1" stroke-width="1.2" />
+
+      <rect x="101" y="0" width="26" height="26" class="tb-btn" />
+      <circle cx="114" cy="13" r="6" fill="none" stroke="#16A34A" stroke-width="1.6" />
+      <rect x="130" y="0" width="26" height="26" class="tb-btn" />
+      <path d="M 137 13 L 149 13 M 140 8 L 146 18" stroke="#DC2626" stroke-width="1.8" />
+      <line x1="161" y1="3" x2="161" y2="23" stroke="#CBD5E1" stroke-width="1.2" />
+
+      <rect x="166" y="0" width="26" height="26" class="tb-btn" />
+      <circle cx="179" cy="13" r="6" fill="#DBEAFE" stroke="#2563EB" stroke-width="1.6" />
+      <rect x="196" y="0" width="38" height="26" class="tb-btn" />
+      <rect x="202" y="6" width="12" height="14" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.3" />
+      <polygon points="221,11 229,11 225,16" fill="#334155" />
+      <line x1="239" y1="3" x2="239" y2="23" stroke="#CBD5E1" stroke-width="1.2" />
+
+      <rect x="244" y="0" width="26" height="26" class="tb-btn" />
+      <path d="M 251 18 L 261 8 L 264 11 L 254 21 Z" fill="#2563EB" />
+      <rect x="274" y="0" width="38" height="26" class="tb-btn" />
+      <polygon points="282,7 292,13 282,19" fill="#16A34A" />
+      <polygon points="299,11 307,11 303,16" fill="#334155" />
+      <rect x="316" y="0" width="26" height="26" class="tb-btn" />
+      <rect x="324" y="8" width="10" height="10" fill="#DC2626" />
+
+      <!-- 右端クリック開閉 LED ランプ -->
+      <circle cx="530" cy="13" r="11" fill="url(#ledGreen)" stroke="#14532D" stroke-width="1.4" />
+    </g>
+
+    <!-- ③ バス全体制御パネル AllStatus (REN / LLO / DCL / IFC) ※ポート接続時表示 -->
+    <rect x="10" y="104" width="544" height="40" rx="4" fill="#E2E8F0" stroke="#94A3B8" stroke-width="1.2" />
+    <g transform="translate(18, 110)">
+      <rect x="0" y="0" width="124" height="28" fill="#DCFCE7" stroke="#16A34A" stroke-width="1.4" rx="3" />
+      <text x="62" y="19" class="mono" font-size="12.5" font-weight="700" fill="#14532D" text-anchor="middle">REN</text>
+
+      <rect x="134" y="0" width="124" height="28" class="bus-btn" />
+      <text x="196" y="19" class="mono" font-size="12.5" font-weight="700" fill="#1E293B" text-anchor="middle">LLO</text>
+
+      <rect x="268" y="0" width="124" height="28" class="bus-btn" />
+      <text x="330" y="19" class="mono" font-size="12.5" font-weight="700" fill="#1E293B" text-anchor="middle">DCL</text>
+
+      <rect x="402" y="0" width="126" height="28" class="bus-btn" />
+      <text x="465" y="19" class="mono" font-size="12.5" font-weight="700" fill="#B91C1C" text-anchor="middle">IFC</text>
+    </g>
+
+    <!-- ④ 登録機器切り替えタブ (TabControl1) -->
+    <g transform="translate(10, 152)">
+      <path d="M 0 26 L 0 5 Q 0 0 5 0 L 132 0 Q 137 0 137 5 L 137 26 Z" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" />
+      <text x="68" y="18" class="mono" font-size="12" font-weight="700" fill="#1D4ED8" text-anchor="middle">HP_34401A</text>
+
+      <path d="M 140 26 L 140 6 Q 140 2 144 2 L 264 2 Q 268 2 268 6 L 268 26 Z" fill="#E2E8F0" stroke="#CBD5E1" stroke-width="1" />
+      <text x="204" y="18" class="mono" font-size="11.5" fill="#475569" text-anchor="middle">E3631A_01</text>
+
+      <path d="M 271 26 L 271 6 Q 271 2 275 2 L 395 2 Q 399 2 399 6 L 399 26 Z" fill="#E2E8F0" stroke="#CBD5E1" stroke-width="1" />
+      <text x="335" y="18" class="mono" font-size="11.5" fill="#475569" text-anchor="middle">DSOX_2024A</text>
+    </g>
+
+    <!-- デバイス個別パネル & ログ枠 (Panel1) -->
+    <rect x="10" y="177" width="544" height="328" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" />
+    <line x1="11" y1="177" x2="146" y2="177" stroke="#FFFFFF" stroke-width="2" />
+
+    <!-- ⑤ デバイス個別制御パネル DevStatus (2段構成 + STB 8bit ランプ) -->
+    <rect x="16" y="184" width="532" height="72" rx="4" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2" />
+
+    <!-- 1段目: [GTL(水色)] [SDC] [GET] [10] mSec [REC] [100] -->
+    <g transform="translate(24, 191)">
+      <rect x="0" y="0" width="66" height="26" rx="3" fill="#CFFAFE" stroke="#0891B2" stroke-width="1.4" />
+      <text x="33" y="17" class="mono" font-size="12" font-weight="700" fill="#0E7490" text-anchor="middle">GTL</text>
+
+      <rect x="74" y="0" width="66" height="26" class="dev-btn" />
+      <text x="107" y="17" class="mono" font-size="12" font-weight="700" fill="#1E293B" text-anchor="middle">SDC</text>
+
+      <rect x="148" y="0" width="66" height="26" class="dev-btn" />
+      <text x="181" y="17" class="mono" font-size="12" font-weight="700" fill="#1E293B" text-anchor="middle">GET</text>
+
+      <rect x="222" y="1" width="52" height="24" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1" />
+      <text x="268" y="17" class="mono" font-size="11.5" fill="#0F172A" text-anchor="end">10</text>
+      <text x="280" y="17" class="ui" font-size="11" fill="#334155">mSec</text>
+
+      <rect x="322" y="0" width="66" height="26" class="dev-btn" />
+      <text x="355" y="17" class="mono" font-size="12" font-weight="700" fill="#1E293B" text-anchor="middle">REC</text>
+
+      <rect x="396" y="1" width="62" height="24" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1" />
+      <text x="452" y="17" class="mono" font-size="11.5" fill="#0F172A" text-anchor="end">100</text>
+    </g>
+
+    <!-- 2段目: [SND] [txtSend] [SPL] + STB 8bit ランプ (Bit7..Bit0) -->
+    <g transform="translate(24, 223)">
+      <rect x="0" y="0" width="66" height="26" class="dev-btn" />
+      <text x="33" y="17" class="mono" font-size="12" font-weight="700" fill="#1D4ED8" text-anchor="middle">SND</text>
+
+      <rect x="74" y="1" width="222" height="24" fill="#FFFFFF" stroke="#2563EB" stroke-width="1.3" />
+      <text x="82" y="17" class="mono" font-size="11.5" fill="#0F172A">MEAS:VOLT:DC? AUTO,DEF</text>
+
+      <rect x="304" y="0" width="58" height="26" class="dev-btn" />
+      <text x="333" y="17" class="mono" font-size="12" font-weight="700" fill="#1E293B" text-anchor="middle">SPL</text>
+
+      <!-- STB 8bit ランプ (Bit7 左 -> Bit0 右) -->
+      <g transform="translate(370, 4)">
+        <rect x="0"   y="0" width="16" height="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1" />
+        <rect x="19"  y="0" width="16" height="18" fill="#22C55E" stroke="#15803D" stroke-width="1.2" />
+        <rect x="38"  y="0" width="16" height="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1" />
+        <rect x="57"  y="0" width="16" height="18" fill="#22C55E" stroke="#15803D" stroke-width="1.2" />
+        <rect x="76"  y="0" width="16" height="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1" />
+        <rect x="95"  y="0" width="16" height="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1" />
+        <rect x="114" y="0" width="16" height="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1" />
+        <rect x="133" y="0" width="16" height="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1" />
+        <text x="8"   y="13" class="mono" font-size="9" fill="#475569" text-anchor="middle">7</text>
+        <text x="27"  y="13" class="mono" font-size="9" font-weight="700" fill="#FFFFFF" text-anchor="middle">6</text>
+        <text x="46"  y="13" class="mono" font-size="9" fill="#475569" text-anchor="middle">5</text>
+        <text x="65"  y="13" class="mono" font-size="9" font-weight="700" fill="#FFFFFF" text-anchor="middle">4</text>
+        <text x="84"  y="13" class="mono" font-size="9" fill="#475569" text-anchor="middle">3</text>
+        <text x="103" y="13" class="mono" font-size="9" fill="#475569" text-anchor="middle">2</text>
+        <text x="122" y="13" class="mono" font-size="9" fill="#475569" text-anchor="middle">1</text>
+        <text x="141" y="13" class="mono" font-size="9" fill="#475569" text-anchor="middle">0</text>
+      </g>
+    </g>
+
+    <!-- ⑥ 送受信ログ領域 TxtTerm -->
+    <rect x="16" y="262" width="532" height="236" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" />
+    <rect x="530" y="263" width="17" height="234" fill="#F1F5F9" stroke="#E2E8F0" stroke-width="1" />
+    <rect x="532" y="280" width="13" height="68" rx="3" fill="#CBD5E1" />
+
+    <g class="mono" font-size="12">
+      <text x="26" y="286" fill="#1D4ED8">[ 2026/11/12 12:05:10.120 ] S:*IDN?</text>
+      <text x="26" y="308" fill="#0F172A">[ 2026/11/12 12:05:10.164 ] R:HEWLETT-PACKARD,34401A,0,11-5-2</text>
+      <text x="26" y="330" fill="#1D4ED8">[ 2026/11/12 12:05:12.400 ] S:MEAS:VOLT:DC? AUTO,DEF</text>
+      <text x="26" y="352" fill="#047857" font-weight="700">[ 2026/11/12 12:05:12.815 ] R:+5.00124000E+00</text>
+      <text x="26" y="378" fill="#475569">; S:送信コマンド / R:計測器からの応答データ（受信バッファ SBuf へ自動格納）</text>
+      <text x="26" y="398" fill="#475569">; 環境設定 ➔ Debug ON 時は実機ボード未装着PCでも疑似応答で安全に検証可能</text>
+    </g>
+
+    <!-- ⑦ 下部ステータスバー (3枠) -->
+    <rect x="1" y="514" width="562" height="29" rx="3" fill="#EEF2F6" stroke="#CBD5E1" stroke-width="1" />
+    <line x1="158" y1="517" x2="158" y2="540" stroke="#CBD5E1" stroke-width="1.2" />
+    <line x1="466" y1="517" x2="466" y2="540" stroke="#CBD5E1" stroke-width="1.2" />
+    <text x="12" y="533" class="ui" font-size="11.5" font-weight="600" fill="#15803D">ステータス：接続中</text>
+    <text x="170" y="533" class="ui" font-size="11.5" fill="#1E293B">エラー内容：正常 (CONTEC / Board 0)</text>
+    <text x="514" y="533" class="mono" font-size="11.5" fill="#334155" text-anchor="middle">00:02:15</text>
+  </g>
+
+  <!-- 右側コールアウトパネル -->
+  <rect x="610" y="26" width="328" height="544" class="callout-box" />
+  <text x="626" y="50" class="callout-title">① メニューバー（ドライバ切替・Debug対応）</text>
+  <text x="626" y="68" class="callout-txt">・「環境設定...」から CONTEC / Interface 切替、</text>
+  <text x="626" y="84" class="callout-txt">  実機なし検証用の「Debug」モード切替が可能。</text>
+
+  <text x="626" y="108" class="callout-title">② ツールバー ＆ 右端クリック開閉 LED ランプ</text>
+  <text x="626" y="126" class="callout-txt">・右端の丸ランプクリックでもポート開閉を切替可能</text>
+  <text x="626" y="142" class="callout-txt">  （赤＝未接続 ／ 緑＝接続中）。</text>
+
+  <text x="626" y="166" class="callout-title">③ バス全体制御パネル（ポート接続時に表示）</text>
+  <text x="626" y="184" class="callout-txt">・REN（リモート有効）、LLO（ローカルロックアウト）、</text>
+  <text x="626" y="200" class="callout-txt">  DCL（全機器クリア）、IFC（バス初期化）を実行。</text>
+
+  <text x="626" y="224" class="callout-title">④ 登録機器切り替えタブ</text>
+  <text x="626" y="242" class="callout-txt">・接続中の複数計測器をタブで瞬時に切り替えます。</text>
+
+  <text x="626" y="266" class="callout-title">⑤ 機器個別制御パネル ＆ STB 8bit ランプ</text>
+  <text x="626" y="284" class="callout-txt">・GTR/GTL、SDC、GET（周期連続トリガ）、REC、</text>
+  <text x="626" y="300" class="callout-txt">  SND（単発送信）、SPL（シリアルポール）を搭載。</text>
+  <text x="626" y="316" class="callout-txt">・右側の 8bit ランプ（Bit7～0）は STB 応答ビットを</text>
+  <text x="626" y="332" class="callout-txt">  緑点灯し、ホバーでビット定義名称を表示します。</text>
+
+  <text x="626" y="356" class="callout-title">⑥ 送受信ログ領域（TxtTerm）</text>
+  <text x="626" y="374" class="callout-txt">・送信「S:」と受信「R:」をリアルタイム表示・記録。</text>
+
+  <text x="626" y="398" class="callout-title">⑦ 下部ステータスバー</text>
+  <text x="626" y="416" class="callout-txt">・接続状態、エラー内容、接続経過時間を常時表示。</text>
+
+  <!-- 補足ボックス -->
+  <rect x="624" y="438" width="300" height="116" rx="5" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.2" />
+  <text x="636" y="458" class="ui" font-size="11" font-weight="700" fill="#1E3A8A">💡 ポート未接続時の画面表示について</text>
+  <text x="636" y="478" class="ui" font-size="10.5" fill="#1E40AF">誤操作を防ぐ安全設計により、ポート未接続（赤ランプ）</text>
+  <text x="636" y="495" class="ui" font-size="10.5" fill="#1E40AF">の状態では ③ バス制御パネルと ⑤ 機器個別制御パネル</text>
+  <text x="636" y="512" class="ui" font-size="10.5" fill="#1E40AF">は自動的に非表示となり、「ポートを開く」実行と同時に</text>
+  <text x="636" y="529" class="ui" font-size="10.5" fill="#1E40AF">図の全制御ボタンが展開されます。</text>
+
+  <!-- 番号バッジ -->
+  <g>
+    <circle cx="24" cy="70" r="11" class="badge-circle" />
+    <text x="24" y="70" class="badge-num">1</text>
+
+    <circle cx="24" cy="102" r="11" class="badge-circle" />
+    <text x="24" y="102" class="badge-num">2</text>
+
+    <circle cx="24" cy="148" r="11" class="badge-circle" />
+    <text x="24" y="148" class="badge-num">3</text>
+
+    <circle cx="24" cy="188" r="11" class="badge-circle" />
+    <text x="24" y="188" class="badge-num">4</text>
+
+    <circle cx="24" cy="238" r="11" class="badge-circle" />
+    <text x="24" y="238" class="badge-num">5</text>
+
+    <circle cx="24" cy="340" r="11" class="badge-circle" />
+    <text x="24" y="340" class="badge-num">6</text>
+
+    <circle cx="24" cy="552" r="11" class="badge-circle" />
+    <text x="24" y="552" class="badge-num">7</text>
+  </g>
+</svg>

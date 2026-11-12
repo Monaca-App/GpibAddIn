@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="560" viewBox="0 0 980 560">
+  <defs>
+    <filter id="cardShadow" x="-2%" y="-2%" width="104%" height="106%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0F172A" flood-opacity="0.14" />
+    </filter>
+    <style>
+      .ui { font-family: 'Yu Gothic UI', 'Meiryo UI', 'Segoe UI', sans-serif; }
+      .mono { font-family: 'Consolas', 'BIZ UDGothic', 'MS Gothic', monospace; }
+      .card { fill: #FFFFFF; stroke: #94A3B8; stroke-width: 1.4; rx: 7; }
+      .seq-hdr { fill: #DCE6F2; stroke: #64748B; stroke-width: 1; }
+      .seq-val { fill: #FFFFFF; stroke: #64748B; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <!-- 背景 -->
+  <rect x="0" y="0" width="980" height="560" fill="#F8FAFC" rx="10" />
+  <text x="490" y="28" class="ui" font-size="15" font-weight="700" fill="#0F172A" text-anchor="middle">GPIB マクロスクリプト（CSV） ⇔ GUI 3画面・Excel シーケンス 総合連動マッピング</text>
+
+  <!-- ========================================================= -->
+  <!-- 左ペイン: GPIB CSV マクロスクリプト定義 (Shift-JIS)       -->
+  <!-- ========================================================= -->
+  <g transform="translate(20, 44)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="432" height="442" class="card" />
+    <path d="M 0 7 Q 0 0 7 0 L 425 0 Q 432 0 432 7 L 432 32 L 0 32 Z" fill="#1E293B" />
+    <text x="14" y="21" class="ui" font-size="12.5" font-weight="700" fill="#FFFFFF">① GPIB マクロスクリプト CSV（Shift-JIS）</text>
+
+    <!-- TITLE ブロック -->
+    <rect x="12" y="42" width="408" height="96" rx="4" fill="#EFF6FF" stroke="#60A5FA" stroke-width="1.3" />
+    <text x="20" y="60" class="mono" font-size="11.5" font-weight="700" fill="#1E3A8A">TITLE, "HP_34401A"</text>
+    <text x="20" y="78" class="mono" font-size="10.5" fill="#1E40AF">,DEVICEBOARD, 0  /  ,DEVICEADDRESS1ST, 22</text>
+    <text x="20" y="95" class="mono" font-size="10.5" fill="#1E40AF">,DELIMITER, 3 (LF)  /  ,EOI, true</text>
+    <text x="20" y="112" class="mono" font-size="10.5" font-weight="700" fill="#0369A1">,SERIALSTATUS, 5, "MAV (出力準備完了)"</text>
+    <text x="24" y="130" class="ui" font-size="9.5" fill="#1D4ED8">▲ ハードウェア初期設定 ＆ メイン画面 STB ビット名称を定義</text>
+
+    <!-- COMMAND -->
+    <rect x="12" y="148" width="408" height="32" rx="4" fill="#F0F9FF" stroke="#38BDF8" stroke-width="1.2" />
+    <text x="20" y="169" class="mono" font-size="11.5" font-weight="700" fill="#0C4A6E">COMMAND, "DCV", "RES_VOLT"</text>
+
+    <!-- PARAM List -->
+    <rect x="12" y="188" width="408" height="38" rx="4" fill="#F0FDF4" stroke="#4ADE80" stroke-width="1.3" />
+    <text x="20" y="206" class="mono" font-size="11" font-weight="700" fill="#14532D">,PARAM, "RNG", List, "測定レンジ", "AUTO", "10", "100"</text>
+    <text x="26" y="220" class="ui" font-size="9.5" fill="#15803D">▲ 第5列［表示名］・第6列［初期値］は全型で省略不可</text>
+
+    <!-- PARAM Text (Debug疑似応答) -->
+    <rect x="12" y="234" width="408" height="34" rx="4" fill="#F0FDF4" stroke="#86EFAC" stroke-width="1.2" />
+    <text x="20" y="255" class="mono" font-size="11" font-weight="700" fill="#14532D">,PARAM, "DBG", Text, "疑似データ", "+5.0012E+00"</text>
+
+    <!-- PARAM Range -->
+    <rect x="12" y="276" width="408" height="38" rx="4" fill="#ECFDF5" stroke="#10B981" stroke-width="1.3" />
+    <text x="20" y="294" class="mono" font-size="11" font-weight="700" fill="#065F46">,PARAM, "RES_VOLT", Range, "DC電圧測定値", ""</text>
+    <text x="26" y="308" class="ui" font-size="9.5" fill="#047857">▲ COMMAND結果キー ➔ 測定値出力・配列データの2次元展開</text>
+
+    <!-- PARAM Work -->
+    <rect x="12" y="322" width="408" height="38" rx="4" fill="#FEF2F2" stroke="#F87171" stroke-width="1.3" />
+    <text x="20" y="340" class="mono" font-size="11" font-weight="700" fill="#991B1B">,PARAM, "CNT", Work, "内部カウンタ", "0"</text>
+    <text x="26" y="354" class="ui" font-size="9.5" font-weight="700" fill="#B91C1C">▲ Work型：編集画面のみ表示 ／ Excelシート列には非表示</text>
+
+    <!-- SEQUENCE -->
+    <rect x="12" y="368" width="408" height="62" rx="4" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.2" />
+    <text x="20" y="387" class="mono" font-size="10.5" fill="#78350F">,SEQUENCE, 10, Gpib_DebugData, "$DBG$"</text>
+    <text x="20" y="404" class="mono" font-size="10.5" fill="#78350F">,SEQUENCE, 20, Gpib_SendReceive, "MEAS:VOLT:DC? $RNG$"</text>
+    <text x="20" y="421" class="mono" font-size="10.5" fill="#78350F">,SEQUENCE, 30, Set_Data, "RES_VOLT"</text>
+  </g>
+
+  <!-- ========================================================= -->
+  <!-- 右上ペイン: プロパティ画面 & メイン画面 STB への連動      -->
+  <!-- ========================================================= -->
+  <g transform="translate(508, 44)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="452" height="122" class="card" />
+    <path d="M 0 7 Q 0 0 7 0 L 445 0 Q 452 0 452 7 L 452 28 L 0 28 Z" fill="#0369A1" />
+    <text x="14" y="19" class="ui" font-size="11.5" font-weight="700" fill="#FFFFFF">② プロパティ「GPIB設定」 ＆ メイン画面「機器タブ・STB ランプ」</text>
+
+    <rect x="14" y="38" width="204" height="72" rx="4" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1" />
+    <text x="22" y="55" class="ui" font-size="10.5" font-weight="700" fill="#1E293B">プロパティ［GPIB設定］初期値</text>
+    <text x="22" y="73" class="mono" font-size="10.5" fill="#334155">機器名称: HP_34401A_01</text>
+    <text x="22" y="90" class="mono" font-size="10.5" fill="#334155">PAD=22 / DELIM=LF / EOI=ON</text>
+    <text x="22" y="104" class="ui" font-size="9.5" fill="#64748B">※後からGUI上で台別に変更可能</text>
+
+    <rect x="228" y="38" width="210" height="72" rx="4" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1" />
+    <text x="236" y="55" class="ui" font-size="10.5" font-weight="700" fill="#1E293B">メイン画面［機器タブ ＆ STB］</text>
+    <rect x="236" y="62" width="90" height="18" rx="2" fill="#DBEAFE" stroke="#60A5FA" stroke-width="1" />
+    <text x="281" y="75" class="mono" font-size="10" font-weight="700" fill="#1E3A8A" text-anchor="middle">HP_34401A</text>
+    <!-- STB mini lamps -->
+    <g transform="translate(236, 86)">
+      <rect x="0"  y="0" width="14" height="15" fill="#E2E8F0" stroke="#64748B" />
+      <rect x="16" y="0" width="14" height="15" fill="#E2E8F0" stroke="#64748B" />
+      <rect x="32" y="0" width="14" height="15" fill="#E2E8F0" stroke="#64748B" />
+      <rect x="48" y="0" width="14" height="15" fill="#22C55E" stroke="#15803D" />
+      <text x="70" y="12" class="ui" font-size="9.5" font-weight="700" fill="#15803D">◀ MAV (出力準備完了)</text>
+    </g>
+  </g>
+
+  <!-- ========================================================= -->
+  <!-- 右中ペイン: コマンド編集画面へのマッピング                -->
+  <!-- ========================================================= -->
+  <g transform="translate(508, 180)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="452" height="142" class="card" />
+    <path d="M 0 7 Q 0 0 7 0 L 445 0 Q 452 0 452 7 L 452 28 L 0 28 Z" fill="#1E3A8A" />
+    <text x="14" y="19" class="ui" font-size="11.5" font-weight="700" fill="#FFFFFF">③ コマンド編集画面（GpibEditForm）での表示</text>
+
+    <text x="16" y="48" class="mono" font-size="11" font-weight="700" fill="#1E3A8A">選択コマンド: [ HP_34401A_DCV ▼ ]</text>
+
+    <rect x="16" y="56" width="420" height="50" rx="3" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1" />
+    <text x="24" y="73" class="ui" font-size="10.5" fill="#0F172A">・測定レンジ: ［ AUTO ▼ ］ ／ 疑似データ: ［ +5.0012E+00 ］</text>
+    <text x="24" y="94" class="ui" font-size="10.5" font-weight="700" fill="#991B1B">・内部カウンタ (Work): ［ 0 ］ ※編集画面ではデバッグ用に表示</text>
+
+    <rect x="16" y="112" width="140" height="22" fill="#ECFDF5" stroke="#10B981" stroke-width="1.2" />
+    <text x="22" y="127" class="ui" font-size="10" font-weight="700" fill="#065F46">DC電圧測定値</text>
+    <rect x="160" y="112" width="276" height="22" fill="#FFFFFF" stroke="#10B981" stroke-width="1.2" />
+    <text x="168" y="127" class="mono" font-size="11" font-weight="700" fill="#047857">+5.00124000E+00</text>
+  </g>
+
+  <!-- ========================================================= -->
+  <!-- 右下ペイン: Excel 2行シーケンスへのマッピング             -->
+  <!-- ========================================================= -->
+  <g transform="translate(508, 336)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="452" height="150" class="card" />
+    <path d="M 0 7 Q 0 0 7 0 L 445 0 Q 452 0 452 7 L 452 28 L 0 28 Z" fill="#185C37" />
+    <text x="14" y="19" class="ui" font-size="11.5" font-weight="700" fill="#FFFFFF">④ Excel ワークシート（2行1ステップ配置）での表示</text>
+
+    <g transform="translate(14, 40)">
+      <rect x="0" y="0" width="48" height="48" fill="#F0F0F0" stroke="#64748B" stroke-width="1" />
+      <rect x="4" y="6" width="40" height="36" rx="3" fill="#FFFFFF" stroke="#64748B" stroke-width="1.2" />
+      <text x="24" y="28" class="ui" font-size="10.5" font-weight="700" fill="#0F172A" text-anchor="middle">実行</text>
+
+      <rect x="48" y="0" width="50" height="23" class="seq-hdr" />
+      <text x="73" y="15" class="ui" font-size="9.5" font-weight="700" fill="#0F172A" text-anchor="middle">Wait(ms)</text>
+      <rect x="48" y="23" width="50" height="25" class="seq-val" />
+      <text x="92" y="40" class="mono" font-size="10.5" fill="#0F172A" text-anchor="end">0</text>
+
+      <rect x="98" y="0" width="98" height="23" class="seq-hdr" />
+      <text x="147" y="15" class="ui" font-size="9.5" font-weight="700" fill="#0F172A" text-anchor="middle">Command</text>
+      <rect x="98" y="23" width="98" height="25" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.2" />
+      <text x="103" y="40" class="mono" font-size="10" font-weight="700" fill="#1E3A8A">HP_34401A_DCV</text>
+
+      <rect x="196" y="0" width="76" height="23" class="seq-hdr" />
+      <text x="234" y="15" class="ui" font-size="9.5" font-weight="700" fill="#0F172A" text-anchor="middle">Result</text>
+      <rect x="196" y="23" width="76" height="25" fill="#ECFDF5" stroke="#10B981" stroke-width="1.2" />
+      <text x="201" y="40" class="ui" font-size="9.5" font-weight="700" fill="#065F46">電圧測定値</text>
+
+      <rect x="272" y="0" width="74" height="23" class="seq-hdr" />
+      <text x="309" y="15" class="ui" font-size="9.5" font-weight="700" fill="#0F172A" text-anchor="middle">測定レンジ</text>
+      <rect x="272" y="23" width="74" height="25" fill="#F0FDF4" stroke="#4ADE80" stroke-width="1.2" />
+      <text x="278" y="40" class="mono" font-size="10" fill="#14532D">AUTO ▼</text>
+
+      <rect x="346" y="0" width="78" height="23" class="seq-hdr" />
+      <text x="385" y="15" class="ui" font-size="9.5" font-weight="700" fill="#0F172A" text-anchor="middle">疑似データ</text>
+      <rect x="346" y="23" width="78" height="25" class="seq-val" />
+      <text x="351" y="40" class="mono" font-size="9.5" fill="#0F172A">+5.0012E+0</text>
+    </g>
+
+    <rect x="14" y="98" width="424" height="40" rx="4" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.2" />
+    <text x="24" y="116" class="ui" font-size="10.5" font-weight="700" fill="#991B1B">🚫 Work 型（内部カウンタ等）は Excel シート上に列生成されず自動隠蔽されます</text>
+    <text x="24" y="131" class="ui" font-size="10" fill="#7F1D1D">Debugモード ON 時は Gpib_DebugData の疑似応答値で実機なしシート検証が可能です。</text>
+  </g>
+
+  <!-- 接続矢印 -->
+  <g fill="none" stroke-width="2">
+    <!-- TITLE -> 右上 -->
+    <path d="M 440 128 L 504 105" stroke="#0284C7" />
+    <polygon points="499,101 508,104 502,111" fill="#0284C7" />
+
+    <!-- COMMAND/PARAM -> 右中 & 右下 -->
+    <path d="M 440 245 L 478 245 L 504 245" stroke="#16A34A" />
+    <polygon points="500,240 508,245 500,250" fill="#16A34A" />
+    <path d="M 478 245 L 478 400 L 504 400" stroke="#16A34A" stroke-dasharray="4 3" />
+    <polygon points="500,395 508,400 500,405" fill="#16A34A" />
+  </g>
+
+  <!-- 下部ポイント要約 -->
+  <rect x="20" y="500" width="940" height="48" rx="6" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.3" />
+  <text x="36" y="520" class="ui" font-size="11.5" font-weight="700" fill="#92400E">💡 CSV 1 ファイルで「機器初期設定」「メイン画面 STB ランプ」「コマンド編集 UI」「Excel シート列」の 4 箇所が自動構築されます</text>
+  <text x="36" y="538" class="ui" font-size="11" fill="#451A03">・プログラムの再コンパイルを一切行うことなく、Shift-JIS 形式の CSV を追加・編集するだけで新しい計測器に即座に対応できます。</text>
+</svg>

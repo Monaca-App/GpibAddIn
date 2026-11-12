@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="540" viewBox="0 0 980 540">
+  <defs>
+    <filter id="winShadow" x="-3%" y="-3%" width="106%" height="108%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#0F172A" flood-opacity="0.16" />
+    </filter>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1E3A8A" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+    <style>
+      .ui { font-family: 'Yu Gothic UI', 'Meiryo UI', 'Segoe UI', sans-serif; }
+      .mono { font-family: 'Consolas', 'BIZ UDGothic', 'MS Gothic', monospace; }
+      .grp-box { fill: #F8FAFC; stroke: #CBD5E1; stroke-width: 1.2; rx: 4; }
+      .grp-lbl { font-family: 'Yu Gothic UI', 'Meiryo UI', sans-serif; font-size: 11.5px; font-weight: 700; fill: #1E293B; }
+      .input-box { fill: #FFFFFF; stroke: #94A3B8; stroke-width: 1; rx: 3; }
+      .ro-box { fill: #E2E8F0; stroke: #94A3B8; stroke-width: 1.1; rx: 2; }
+      .btn-box { fill: #FFFFFF; stroke: #94A3B8; stroke-width: 1; rx: 4; }
+      .btn-pri { fill: #2563EB; stroke: #1D4ED8; stroke-width: 1; rx: 4; }
+      .badge-circle { fill: #E8590C; stroke: #FFFFFF; stroke-width: 2; }
+      .badge-num { font-family: 'Segoe UI', 'Yu Gothic UI', sans-serif; font-size: 12.5px; font-weight: 700; fill: #FFFFFF; text-anchor: middle; dominant-baseline: central; }
+      .callout-box { fill: #FFFBEB; stroke: #F59E0B; stroke-width: 1.3; rx: 6; }
+    </style>
+  </defs>
+
+  <!-- 背景 -->
+  <rect x="0" y="0" width="980" height="540" fill="#F8FAFC" rx="10" />
+
+  <!-- ========================================================= -->
+  <!-- 左ウィンドウ: 第1タブ「GPIB設定」（プロパティタブ）       -->
+  <!-- ========================================================= -->
+  <g transform="translate(22, 22)" filter="url(#winShadow)">
+    <rect x="0" y="0" width="448" height="412" rx="6" fill="#F3F4F6" stroke="#94A3B8" stroke-width="1.4" />
+    <path d="M 0 6 Q 0 0 6 0 L 442 0 Q 448 0 448 6 L 448 30 L 0 30 Z" fill="url(#titleGrad)" />
+    <text x="14" y="20" class="ui" font-size="12.5" font-weight="700" fill="#FFFFFF">プロパティ</text>
+    <line x1="424" y1="10" x2="434" y2="20" stroke="#FFFFFF" stroke-width="1.6" />
+    <line x1="434" y1="10" x2="424" y2="20" stroke="#FFFFFF" stroke-width="1.6" />
+
+    <!-- タブヘッダ: [GPIB設定] アクティブ / [機器リスト] 非アクティブ -->
+    <path d="M 12 62 L 12 40 Q 12 36 16 36 L 106 36 Q 110 36 110 40 L 110 62 Z" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" />
+    <text x="61" y="53" class="ui" font-size="11.5" font-weight="700" fill="#1D4ED8" text-anchor="middle">GPIB設定</text>
+    <path d="M 112 62 L 112 42 Q 112 38 116 38 L 204 38 Q 208 38 208 42 L 208 62 Z" fill="#E2E8F0" stroke="#CBD5E1" stroke-width="1" />
+    <text x="160" y="53" class="ui" font-size="11.5" fill="#475569" text-anchor="middle">機器リスト</text>
+
+    <!-- タブページ本体 -->
+    <rect x="12" y="61" width="424" height="300" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" />
+    <line x1="13" y1="61" x2="109" y2="61" stroke="#FFFFFF" stroke-width="2" />
+
+    <!-- GroupBox: GPIB機器 -->
+    <rect x="24" y="76" width="400" height="236" class="grp-box" />
+    <rect x="34" y="68" width="70" height="16" fill="#FFFFFF" />
+    <text x="38" y="80" class="grp-lbl">GPIB機器</text>
+
+    <!-- 機器名称 -->
+    <text x="40" y="108" class="ui" font-size="11.5" fill="#1E293B">機器名称</text>
+    <rect x="136" y="92" width="270" height="25" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.4" rx="3" />
+    <text x="146" y="109" class="mono" font-size="12" font-weight="700" fill="#1E3A8A">HP_34401A_01</text>
+    <polygon points="390,102 398,102 394,108" fill="#1E40AF" />
+
+    <!-- ボード番号 -->
+    <text x="40" y="138" class="ui" font-size="11.5" fill="#1E293B">ボード番号</text>
+    <rect x="136" y="123" width="100" height="24" class="input-box" />
+    <text x="146" y="139" class="mono" font-size="12" fill="#0F172A">0</text>
+
+    <!-- 第1アドレス -->
+    <text x="40" y="168" class="ui" font-size="11.5" fill="#1E293B">第1アドレス</text>
+    <rect x="136" y="153" width="100" height="24" class="input-box" />
+    <text x="146" y="169" class="mono" font-size="12" font-weight="700" fill="#0F172A">22</text>
+    <text x="248" y="169" class="ui" font-size="10.5" fill="#64748B">(PAD: 0～30)</text>
+
+    <!-- 第2アドレス -->
+    <text x="40" y="198" class="ui" font-size="11.5" fill="#1E293B">第2アドレス</text>
+    <rect x="136" y="183" width="100" height="24" class="input-box" />
+    <text x="146" y="199" class="mono" font-size="12" fill="#0F172A">-1</text>
+    <text x="248" y="199" class="ui" font-size="10.5" fill="#64748B">(-1: 不使用 / 96～127)</text>
+
+    <!-- デリミタ -->
+    <text x="40" y="228" class="ui" font-size="11.5" fill="#1E293B">デリミタ</text>
+    <rect x="136" y="213" width="124" height="24" class="input-box" />
+    <text x="146" y="229" class="mono" font-size="12" fill="#0F172A">LF</text>
+    <polygon points="244,222 252,222 248,228" fill="#475569" />
+
+    <!-- EOI チェックボックス -->
+    <rect x="284" y="218" width="15" height="15" rx="2" fill="#2563EB" />
+    <path d="M 287 226 L 290 229 L 296 221" fill="none" stroke="#FFFFFF" stroke-width="1.8" />
+    <text x="306" y="230" class="mono" font-size="12" font-weight="700" fill="#1E293B">EOI</text>
+
+    <!-- 機器ID (読み取り専用 3D 凹みラベル) -->
+    <text x="40" y="262" class="ui" font-size="11.5" fill="#1E293B">機器ID</text>
+    <rect x="136" y="246" width="270" height="24" class="ro-box" />
+    <text x="144" y="262" class="mono" font-size="11" fill="#334155">HEWLETT-PACKARD,34401A,0,11-5-2</text>
+
+    <!-- ② 詳細設定（登録情報更新ボタン） -->
+    <rect x="292" y="320" width="132" height="29" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.4" rx="4" />
+    <text x="358" y="339" class="ui" font-size="11.5" font-weight="700" fill="#1D4ED8" text-anchor="middle">詳細設定 (反映)</text>
+
+    <!-- 下部右寄せ OK / キャンセル -->
+    <rect x="242" y="371" width="92" height="30" class="btn-pri" />
+    <text x="288" y="390" class="ui" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">OK</text>
+    <rect x="344" y="371" width="92" height="30" class="btn-box" />
+    <text x="390" y="390" class="ui" font-size="12" font-weight="600" fill="#1E293B" text-anchor="middle">キャンセル</text>
+  </g>
+
+  <!-- ========================================================= -->
+  <!-- 右ウィンドウ: 第2タブ「機器リスト」（コマンド選択タブ）   -->
+  <!-- ========================================================= -->
+  <g transform="translate(510, 22)" filter="url(#winShadow)">
+    <rect x="0" y="0" width="448" height="412" rx="6" fill="#F3F4F6" stroke="#94A3B8" stroke-width="1.4" />
+    <path d="M 0 6 Q 0 0 6 0 L 442 0 Q 448 0 448 6 L 448 30 L 0 30 Z" fill="url(#titleGrad)" />
+    <text x="14" y="20" class="ui" font-size="12.5" font-weight="700" fill="#FFFFFF">プロパティ</text>
+    <line x1="424" y1="10" x2="434" y2="20" stroke="#FFFFFF" stroke-width="1.6" />
+    <line x1="434" y1="10" x2="424" y2="20" stroke="#FFFFFF" stroke-width="1.6" />
+
+    <!-- タブヘッダ: [GPIB設定] 非アクティブ / [機器リスト] アクティブ -->
+    <path d="M 12 62 L 12 42 Q 12 38 16 38 L 106 38 Q 110 38 110 42 L 110 62 Z" fill="#E2E8F0" stroke="#CBD5E1" stroke-width="1" />
+    <text x="61" y="53" class="ui" font-size="11.5" fill="#475569" text-anchor="middle">GPIB設定</text>
+    <path d="M 112 62 L 112 40 Q 112 36 116 36 L 204 36 Q 208 36 208 40 L 208 62 Z" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" />
+    <text x="160" y="53" class="ui" font-size="11.5" font-weight="700" fill="#1D4ED8" text-anchor="middle">機器リスト</text>
+
+    <!-- タブページ本体 -->
+    <rect x="12" y="61" width="424" height="300" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" />
+    <line x1="113" y1="61" x2="207" y2="61" stroke="#FFFFFF" stroke-width="2" />
+
+    <!-- GroupBox: コマンド集 -->
+    <rect x="24" y="76" width="400" height="236" class="grp-box" />
+    <rect x="34" y="68" width="76" height="16" fill="#FFFFFF" />
+    <text x="38" y="80" class="grp-lbl">コマンド集</text>
+
+    <!-- 上段: コマンド集選択 (有効化機器リスト) -->
+    <text x="38" y="99" class="ui" font-size="11" font-weight="600" fill="#334155">コマンド集選択（現在制御対象として有効な機器）</text>
+    <rect x="38" y="105" width="372" height="68" class="input-box" />
+    <rect x="39" y="106" width="370" height="21" fill="#DBEAFE" />
+    <text x="46" y="121" class="mono" font-size="11.5" font-weight="700" fill="#1E3A8A">HP_34401A_01  (アドレス 22)</text>
+    <text x="46" y="141" class="mono" font-size="11.5" fill="#0F172A">HP_34401A_02  (同型2台目: 自動連番付与)</text>
+    <text x="46" y="161" class="mono" font-size="11.5" fill="#0F172A">E3631A_01     (直流安定化電源)</text>
+
+    <!-- 中央移動ボタン [↑] [↓] -->
+    <rect x="168" y="180" width="48" height="24" class="btn-box" />
+    <text x="192" y="196" class="ui" font-size="12" font-weight="700" fill="#1D4ED8" text-anchor="middle">↑</text>
+    <rect x="232" y="180" width="48" height="24" class="btn-box" />
+    <text x="256" y="196" class="ui" font-size="12" font-weight="700" fill="#1D4ED8" text-anchor="middle">↓</text>
+
+    <!-- 下段: コマンド集リスト (控え機器リスト) -->
+    <text x="38" y="220" class="ui" font-size="11" font-weight="600" fill="#334155">コマンド集リスト（登録済み控え機器）</text>
+    <rect x="38" y="226" width="372" height="74" class="input-box" />
+    <text x="46" y="244" class="mono" font-size="11.5" fill="#475569">DSOX_2024A_01</text>
+    <text x="46" y="264" class="mono" font-size="11.5" fill="#475569">E4980A_LCR_01</text>
+
+    <!-- ④ コマンド追加 / コマンド削除 -->
+    <rect x="74" y="320" width="132" height="29" class="btn-box" />
+    <text x="140" y="339" class="ui" font-size="11.5" font-weight="600" fill="#1E293B" text-anchor="middle">コマンド追加</text>
+    <rect x="242" y="320" width="132" height="29" class="btn-box" />
+    <text x="308" y="339" class="ui" font-size="11.5" font-weight="600" fill="#B91C1C" text-anchor="middle">コマンド削除</text>
+
+    <!-- 下部右寄せ OK / キャンセル -->
+    <rect x="242" y="371" width="92" height="30" class="btn-pri" />
+    <text x="288" y="390" class="ui" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">OK</text>
+    <rect x="344" y="371" width="92" height="30" class="btn-box" />
+    <text x="390" y="390" class="ui" font-size="12" font-weight="600" fill="#1E293B" text-anchor="middle">キャンセル</text>
+  </g>
+
+  <!-- 下部解説ボックス -->
+  <rect x="22" y="446" width="936" height="80" class="callout-box" />
+  <text x="40" y="468" class="ui" font-size="11.5" font-weight="700" fill="#92400E">① 「GPIB設定」タブ ➔ ② 「詳細設定」で機器別アドレス更新 ／ ③ 「機器リスト」タブ ➔ ④ 「コマンド追加」で機器 CSV 登録</text>
+  <text x="40" y="488" class="ui" font-size="11" fill="#451A03">・同じ CSV を複数回「コマンド追加」すると _01, _02... と自動連番が付与され、同型計測器の複数台同時制御が簡単に行えます。</text>
+  <text x="40" y="508" class="ui" font-size="11" fill="#451A03">・アドレスやデリミタを編集した後は、まず ②「詳細設定」を押して対象機器へ反映し、最後に画面下部の「OK」を押してファイル保存します。</text>
+
+  <!-- 番号バッジ -->
+  <g>
+    <circle cx="42" cy="66" r="11" class="badge-circle" />
+    <text x="42" y="66" class="badge-num">1</text>
+
+    <circle cx="306" cy="356" r="11" class="badge-circle" />
+    <text x="306" y="356" class="badge-num">2</text>
+
+    <circle cx="628" cy="66" r="11" class="badge-circle" />
+    <text x="628" y="66" class="badge-num">3</text>
+
+    <circle cx="576" cy="356" r="11" class="badge-circle" />
+    <text x="576" y="356" class="badge-num">4</text>
+  </g>
+</svg>
