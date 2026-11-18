@@ -1,7 +1,5 @@
 ﻿# コマンドリファレンス：Gpib_GET
 
----
-
 ## 概要
 
 **Gpib_GET** は、対象 GPIB デバイス（または指定アドレスの測定器）に対して IEEE 488 アドレス指定コマンド **GET（Group Execute Trigger: `0x08`、NI-488.2 `ibtrg` 相当）** を送出し、ハードウェアバスレベルの測定開始トリガをかけるコマンドです。
@@ -15,23 +13,26 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE,Gpib_GET, "[DeviceAddress]"
+,SEQUENCE, [ステップキー], Gpib_GET, "[Interval: 100]", "[Cycle: 1]"
 ```
 
 ### パラメータ（引数）一覧
 
-| 引数位置 | パラメータ名 | 必須/任意 | 型・制約 | 説明 |
-| :---: | :--- | :---: | :--- | :--- |
-| 第1引数 | `DeviceAddress` | 任意 | 整数（`0`〜`30`） | トリガを送出する対象機器のプライマリアドレスを指定します。省略時は現在 `Gpib_Open` されている対象機器へ送出します。 |
+| 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
+| :--- | :--- | :--- | :--- |
+| 引数1 | `Interval` | GET（Group Execute Trigger）連続送出時のインターバル時間［ミリ秒］（任意・省略時既定値: `"100"`）。 | 正の整数文字列（例: `"100"`）または `$PARAM$` 置換 |
+| 引数2 | `Cycle` | GET トリガの送出サイクル回数（任意・省略時既定値: `"1"`）。 | 正の整数文字列（例: `"1"`, `"5"`）または `$PARAM$` 置換 |
 
 ---
 
 ## 🔄 特殊置換規約・分岐規約の適用
 
-1. **変数展開（`$` / `@` / `#`）**:
-   - 第 1 引数 `DeviceAddress` には変数を指定可能です（例: `"$DMM_ADDR"`）。
-2. **レガシー別名互換**:
-   - 旧表記の `GpibGET` や `GPIB_GET` は内部正規化により本 `Gpib_GET` コマンドへマッピングされます。
+本コマンドの引数における特殊記法および解釈ルールです。
+* **動的置換（`$`）**: 引数内で `$PARAMキー$` のように記述すると、実行時に変数プール（PARAM）の値へ動的置換されます。（適用可能な引数: 全引数対応）
+* **ジャンプ先指定（`#`）**: 本コマンドはジャンプ制御を行わないため適用されません。（適用可能な引数: 非適用）
+* **共通コマンド指定（`@`）**: 本コマンドは外部マクロを呼び出さないため適用されません。（適用可能な引数: 非適用）
+* **カンマのエスケープ**: SCPI コマンド等、引数文字列自体にカンマを含める場合は、必ず `","` と二重引用符で囲んで記述します。
+* **エイリアス（別名）**: `GET`, `GpibGET`
 
 ---
 
@@ -39,27 +40,26 @@
 
 ### スクリプト記述例
 
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+
 ```csv
-,PARAM,MEAS_VAL,0.0
-
-,SEQUENCE,Gpib_Open, "22"
+COMMAND, "SAMPLE_GPIB_GET", ""
+,PARAM, "MEAS_VAL", Text, "MEAS_VAL", "0.0"
+,SEQUENCE, 010, Gpib_Open, "22"
 ; 1. トリガソースをGPIBバス(BUS)に設定してトリガ待機状態(INIT)へ移行
-,SEQUENCE,Gpib_Send, "TRIG:SOUR BUS;INIT"
-,SEQUENCE,Wait, "50"
-
+,SEQUENCE, 020, Gpib_Send, "TRIG:SOUR BUS;INIT"
+,SEQUENCE, 030, Wait, "50"
 ; 2. GET (Group Execute Trigger: 0x08) を送出して測定を実行し、結果を取得
-,SEQUENCE,Gpib_GET
-,SEQUENCE,Gpib_SendReceive, "FETCH?", "$MEAS_VAL"
-
-,SEQUENCE,Gpib_Close
-,SEQUENCE,Exit
+,SEQUENCE, 040, Gpib_GET
+,SEQUENCE, 050, Gpib_SendReceive, "FETCH?", "$MEAS_VAL$"
+,SEQUENCE, 060, Gpib_Close
+,SEQUENCE, 070, Exit
 ```
 
 ### 実行時の挙動・変数変化
 
-1. `TRIG:SOUR BUS;INIT` により測定器がバストリガ待ち状態になります。
-2. `Gpib_GET` の実行により ATN アサート状態で `GET (0x08)` が送出され、即座にサンプリングが開始されます。
-3. 続く `Gpib_SendReceive, "FETCH?", "$MEAS_VAL"` で測定結果が `$MEAS_VAL` に格納されます。
+* **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
+* **実行後の状態**: `TRIG:SOUR BUS;INIT` により測定器がバストリガ待ち状態になります。 `Gpib_GET` の実行により ATN アサート状態で `GET (0x08)` が送出され、即座にサンプリングが開始されます。 続く `Gpib_SendReceive, "FETCH?", "$MEAS_VAL"` で測定結果が `$MEAS_VAL` に格納されます。
 
 ---
 
@@ -96,15 +96,19 @@ sequenceDiagram
 
 ## 🧪 ユニットテスト仕様
 
+本コマンドクラス（`Gpib_GETCommand.cs`）に実装されている `RunUnitTest()` メソッドが検証するユニットテストの仕様です。
+
 ### テスト実行前提条件
-- **対象クラス**: `GpibAnalysis.GPIB.Gpib_GETCommand`（`Gpib_GETCommand.cs`）
-- **モック環境**: `IGpibDriverAdapter` モックが注入されていること。
+
+* **実行トリガー**: `RunUnitTest()` メソッドの呼び出し
+* **有効化条件**: システム全体の最小ログレベル（`ErrorLogger.MinimumLevel`）が `LogLevel.Test` であること（それ以外の場合は無効化ガードにより早期リターン）
+* **検証結果出力**: `_log.LogTest` によるログ出力。検証失敗時は `_log.LogError`、予期せぬ例外発生時は `_log.LogCritical` で記録し、`finally` ブロックで `GpibDLL.DebugDLL` および `GpibDLL.DebugReceiveData` を元の状態へ復元します。
 
 ### テストケース一覧
 
-| テストID | テスト観点 | 入力スクリプト | 期待される動作・検証項目 |
-| :--- | :--- | :--- | :--- |
-| `UT-GPIB-GET-01` | 正常系（カレント機器トリガ） | `,SEQUENCE,Gpib_GET` | オープン中の機器に対して `TriggerDevice` が呼ばれること。 |
-| `UT-GPIB-GET-02` | 正常系（アドレス指定トリガ） | `,SEQUENCE,Gpib_GET, "22"` | アドレス `22` に対して `TriggerDevice(22)` が呼ばれること。 |
-| `UT-GPIB-GET-03` | 異常系（アドレス範囲外） | `,SEQUENCE,Gpib_GET, "35"` | `ArgumentOutOfRangeException` が送出されること。 |
-
+| No | テストカテゴリ | テスト条件（入力値） | 期待される結果（出力値） | 検証の目的 / 観点 |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | 正常系・異常系 | `ParseInterval` に `"500"`・`"-100"`・`"invalid"`・`""` を指定して実行 | `"500"` は `500`、負数・非数値・空文字はすべて `0` を返す | トリガ周期文字列の数値解析および異常入力フォールバックの検証 |
+| **2** | 正常系・異常系 | `CalculateNextCycle` に `"10"`・`"1"`・`"invalid"` を指定して実行 | それぞれ `9`・`0`・`99`（既定 `100 - 1`）を返す | サイクル数デクリメント計算および非数値フォールバックの検証 |
+| **3** | 正常系 | `GetButtonUiState(true)` および `GetButtonUiState(false)` を実行 | 処理中は `(false, Color.Aqua)`、待機中は `(true, Color.Gainsboro)` を返す | GET 送出ボタンの活性状態および背景色遷移の検証 |
+| **4** | 正常系・異常系 | `CanSendTrigger(true)` / `(false)` 判定、および余剰引数 `("100", "1", "EXTRA")` 指定で `Func` を実行 | オープン時のみ `true` を返し、3 引数指定時は `HasError == true`・`IsCommandGo == false` で安全停止する | ポート状態判定および引数個数超過（`ValidateParamRange(0, 2)`）時の安全停止検証 |

@@ -1,13 +1,11 @@
 ﻿# コマンドリファレンス：Gpib_Send
 
----
-
 ## 概要
 
-**Gpib_Send** は、オープン中の GPIB デバイス（または指定アドレスの測定器）に対して SCPI コマンドや制御文字列を送信するコマンドです。
-設定に応じて送信末デリミタ（`CR+LF` / `LF`）および EOI（End Or Identify）単一ラインアサートが自動的に付与されます。
+**Gpib_Send** は、接続中の対象 GPIB デバイスに対して SCPI コマンド文字列または HEX（16 進数）デコード電文を物理送信する GPIB 通信制御系コマンドです。  
+第 2 引数 `Format` により通常のテキスト送信（`"ASCII"`）と 16 進バイト列デコード送信（`"HEX"`）を切り替え可能であり、メイン画面経由の実行時には UI 送信欄同期および通信異常時の自動復旧リトライと連動します。
 
-> 💡 **補足**: 送信後に即座に応答を受信したい場合は [`Gpib_SendReceive`](./Gpib_SendReceive.Md) を使用し、送信のみを行う設定コマンド（`*RST`, `OUTP ON` 等）には本 `Gpib_Send` を使用します。
+> 💡 **補足**: 送信後に引き続いて応答を受信したい場合は [`Gpib_SendReceive`](./Gpib_SendReceive.Md) を使用し、送信のみを行う設定・制御コマンド（`*RST`, `VOLT 5.0`, `OUTP ON` 等）には本 `Gpib_Send` を使用します。
 
 ---
 
@@ -16,26 +14,26 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE,Gpib_Send, "<CommandString>", "[Delimiter/EOI]"
+,SEQUENCE, [ステップキー], Gpib_Send, "<Message>", "[Format: ASCII]"
 ```
 
 ### パラメータ（引数）一覧
 
-| 引数位置 | パラメータ名 | 必須/任意 | 型・制約 | 説明 |
-| :---: | :--- | :---: | :--- | :--- |
-| 第1引数 | `CommandString` | **必須** | 文字列 | GPIB 機器へ送信する SCPI コマンドまたは文字列データを指定します。 |
-| 第2引数 | `Delimiter/EOI` | 任意 | `CRLF` / `LF` / `CR` / `EOI` / `NONE`（既定値: 環境設定値 `CRLF+EOI`） | 送信終端デリミタおよび EOI ラインの制御方式を個別指定します。省略時はデフォルト設定に従います。 |
+| 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
+| :--- | :--- | :--- | :--- |
+| 引数1 | `Message` | GPIB 機器へ送信するコマンド文字列または 16 進データ文字列（必須）。 | SCPI 文字列（例: `"*RST;*CLS"`, `"VOLT $OUTPUT_VOLT$"`）または 16 進文字列（例: `"2A434C53"`） |
+| 引数2 | `Format` | 送信データの解釈形式（任意・省略時既定値: `"ASCII"`）。`"HEX"` 指定時は `Message` の 16 進バイト表記（空白・`-`・`,`・先頭 `0x` 許容）をデコードして送信します。 | `"ASCII"` または `"HEX"`（大文字・小文字非区別）、`$PARAM$` 置換可 |
 
 ---
 
 ## 🔄 特殊置換規約・分岐規約の適用
 
-1. **変数展開（`$` / `@` / `#`）の完全サポート**:
-   - 第 1 引数に `"SOUR:VOLT $SET_VOLT"` や `"@SCPI_CMD"` を指定すると、実行時に変数値へ展開されてから送信されます。
-2. **カンマを含む SCPI コマンドの保護**:
-   - `"CONF:VOLT:DC 10,0.001"` のようにカンマを含む SCPI コマンドは、ダブルクォーテーション `""` で囲むことで単一の第 1 引数として保護されます。
-3. **レガシー別名互換**:
-   - 旧表記の `GpibSend` や `GPIB_SEND` は内部正規化により本 `Gpib_Send` コマンドへマッピングされます。
+本コマンドの引数における特殊記法および解釈ルールです。
+* **動的置換（`$`）**: 引数内で `$PARAMキー$` のように記述すると、実行時に変数プール（PARAM）の値へ動的置換されます。（適用可能な引数: 全引数対応）
+* **ジャンプ先指定（`#`）**: 本コマンドはジャンプ制御を行わないため適用されません。（適用可能な引数: 非適用）
+* **共通コマンド指定（`@`）**: 本コマンドは外部マクロを呼び出さないため適用されません。（適用可能な引数: 非適用）
+* **カンマのエスケープ**: SCPI コマンド等、引数文字列自体にカンマを含める場合は、必ず `","` と二重引用符で囲んで記述します。
+* **エイリアス（別名）**: `Send`
 
 ---
 
@@ -43,27 +41,29 @@
 
 ### スクリプト記述例
 
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+
 ```csv
-,PARAM,OUTPUT_VOLT,5.00
-,PARAM,CURR_LIMIT,1.50
-
-,SEQUENCE,Gpib_Open, "6"
-; 1. 機器のリセットとステータスクリア
-,SEQUENCE,Gpib_Send, "*RST;*CLS"
-
-; 2. 変数展開を用いて出力電圧・制限電流を設定し、出力をON
-,SEQUENCE,Gpib_Send, "VOLT $OUTPUT_VOLT"
-,SEQUENCE,Gpib_Send, "CURR $CURR_LIMIT"
-,SEQUENCE,Gpib_Send, "OUTP ON"
-
-,SEQUENCE,Gpib_Close
-,SEQUENCE,Exit
+COMMAND, "SAMPLE_GPIB_SEND", ""
+,PARAM, "OUTPUT_VOLT", Text, "出力電圧", "5.00"
+,PARAM, "CURR_LIMIT", Text, "制限電流", "1.50"
+,SEQUENCE, 010, Gpib_Open, "0"
+; 1. 既定の ASCII 形式で機器リセットコマンドを送信
+,SEQUENCE, 020, Gpib_Send, "*RST"
+; 2. HEX 形式を指定して "*CLS" (0x2A 0x43 0x4C 0x53) をデコード送信
+,SEQUENCE, 030, Gpib_Send, "2A 43 4C 53", "HEX"
+; 3. 変数展開を用いて出力電圧・制限電流を設定し、出力を ON にする
+,SEQUENCE, 040, Gpib_Send, "VOLT $OUTPUT_VOLT$", "ASCII"
+,SEQUENCE, 050, Gpib_Send, "CURR $CURR_LIMIT$"
+,SEQUENCE, 060, Gpib_Send, "OUTP ON"
+,SEQUENCE, 070, Gpib_Close, "0"
+,SEQUENCE, 080, Exit
 ```
 
 ### 実行時の挙動・変数変化
 
-1. `*RST;*CLS` が送信され、電源装置が初期化されます。
-2. `$OUTPUT_VOLT` が `5.00` に展開され、`"VOLT 5.00\r\n"`（＋EOI アサート）が GPIB バスへ送出されます。
+* **実行前の状態**: GPIB ボードがオープンされ、`"OUTPUT_VOLT"` に `"5.00"`、`"CURR_LIMIT"` に `"1.50"` が設定されている状態。
+* **実行後の状態**: ステップ `020` で `"*RST"` がそのまま ASCII 送信され、ステップ `030` では `Format` に `"HEX"` が指定されているため `"2A 43 4C 53"` が `"*CLS"` へデコードされて送信されます。続くステップ `040`〜`060` で変数展開後の設定コマンドが対象機器へ順次送出されます。
 
 ---
 
@@ -72,46 +72,59 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
+    participant Script as "シーケンス実行エンジン"
     participant Cmd as "Gpib_SendCommand (GpibAnalysis.GPIB)"
-    participant Var as "VariableManager (変数管理)"
-    participant Drv as "IGpibDriverAdapter (NI-488.2 / VISA)"
+    participant Host as "GpibMainForm / GpibDLL"
 
-    Script->>Cmd: Execute(context, commandString, delimiterOption)
-    Cmd->>Var: commandString の変数展開 ($ / @ / #)
-    Cmd->>Cmd: 送信デリミタ(CRLF/LF/CR)およびEOI設定の適用
-    Cmd->>Drv: Write(formattedPayload, assertEoi)
-    alt 送信成功 (ibsta ERRビットなし)
-        Drv-->>Cmd: 送信完了
-        Cmd-->>Script: 正常終了 (Next Step)
-    else リスナー不在(ENOL) または タイムアウト(EABO)
-        Drv-->>Cmd: GpibException 送出
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    Script->>Cmd: Func(parent, param)
+    activate Cmd
+    Cmd->>Cmd: ValidateParamRange(1, 2) 引数個数検証
+    alt 引数個数が 1〜2 個の有効範囲内
+        Cmd->>Cmd: 第1引数 Message ＆ 第2引数 Format 展開取得
+        opt Format が "HEX" の場合
+            Cmd->>Cmd: DecodeHexToAscii(Message) で文字列変換
+        end
+        alt parent (メイン画面) 経由実行時
+            Cmd->>Host: SendMessText 同期 ＆ CommandSendAsync(deviceName, sndData)
+            Host-->>Cmd: 送信完了
+        else ヘッドレス / デバイス直接実行時
+            Cmd->>Host: GpibDLL.SendGpibData(targetDevice, sndData)
+            Host-->>Cmd: 送信完了
+        end
+        Cmd-->>Script: 実行完了
+    else 引数不足(0個) または 余剰引数(3個以上)
+        Cmd->>Cmd: エラーログ出力 (_log.LogError) ＆ 安全停止
+        Cmd-->>Script: 安全停止 (Halt)
     end
+    deactivate Cmd
 ```
 
 ---
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **未オープン時の送信防止**:
-   - `Gpib_Open` が実行されていない状態で呼び出された場合、`InvalidOperationException` を送出して停止します。
-2. **GPIB バスエラー（`ENOL`: リスナー不在 / `EABO`: タイムアウト）の即時検出**:
-   - 対象機器の電源 OFF 等でハンドシェイクが完了しない場合、ドライバのステータスレジスタ（`ibsta` / `iberr`）を検査して即座に通信例外を送出します。
+1. **引数個数バリデーションによる誤実行防止**:
+   - `ValidateParamRange(1, 2)` により、送信文字列 `Message` が省略された場合（0 引数）や 3 個以上の引数が指定された場合は、エラーログを記録して安全に停止します。
+2. **HEX デコード時のフォールバック保護と通信例外捕捉**:
+   - `Format` に `"HEX"` が指定された際、奇数桁や非 16 進文字が含まれる場合は例外クラッシュを起こさず元の文字列へ安全にフォールバックします。また、物理送信中に予期せぬ例外が発生した場合は `_log.LogCritical` を記録し `SetErrorAndHalt(-1, ...)` でシーケンスを安全停止します。
 
 ---
 
 ## 🧪 ユニットテスト仕様
 
+本コマンドクラス（`Gpib_SendCommand.cs`）に実装されている `RunUnitTest()` メソッドが検証するユニットテストの仕様です。
+
 ### テスト実行前提条件
-- **対象クラス**: `GpibAnalysis.GPIB.Gpib_SendCommand`（`Gpib_SendCommand.cs`）
-- **モック環境**: オープン状態の `IGpibDriverAdapter` モックが注入されていること。
+
+* **実行トリガー**: `RunUnitTest()` メソッドの呼び出し
+* **有効化条件**: システム全体の最小ログレベル（`ErrorLogger.MinimumLevel`）が `LogLevel.Test` であること（それ以外の場合は無効化ガードにより早期リターン）
+* **検証結果出力**: `_log.LogTest` によるログ出力。検証失敗時は `_log.LogError`、予期せぬ例外発生時は `_log.LogCritical` で記録し、`finally` ブロックで `GpibDLL.DebugDLL` および `GpibDLL.DebugReceiveData` を元の状態へ復元します。
 
 ### テストケース一覧
 
-| テストID | テスト観点 | 入力スクリプト | 期待される動作・検証項目 |
-| :--- | :--- | :--- | :--- |
-| `UT-GPIB-SEND-01` | 正常送信・変数展開 | `,SEQUENCE,Gpib_Send, "VOLT $V"` | 変数展開後の文字列がモックドライバの `Write` へ渡されること。 |
-| `UT-GPIB-SEND-02` | カンマ含有SCPI送信 | `,SEQUENCE,Gpib_Send, "CONF:VOLT 10,0.01"` | カンマで分割されず `"CONF:VOLT 10,0.01"` 全体が送信されること。 |
-| `UT-GPIB-SEND-03` | 異常系（バスタイムアウト） | モックが `EABO` エラーを返す設定時 | `GpibException` が捕捉され、エラーステータスが記録されて停止すること。 |
-
+| No | テストカテゴリ | テスト条件（入力値） | 期待される結果（出力値） | 検証の目的 / 観点 |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | 正常系・異常系 | `CanSendCommand` にデバイス `null`・空コマンド `""`・未接続 `false`、および `("Dev1", "*IDN?", true)` を指定 | 異常条件 3 パターンはすべて `false`、有効条件は `true` を返す | 送信開始前のデバイス・コマンド・ポート状態検証 |
+| **2** | 正常系 | `IsRetryNeeded` に失敗時 `(1, 3, false)` / `(2, 3, false)`、上限到達 `(3, 3, false)`、成功時 `(1, 3, true)` を指定 | 未満失敗時は `true`、上限到達時および成功時は `false` を返す | 送信エラー発生時のリトライ継続判定の検証 |
+| **3** | 正常系 | `GetButtonUiState(true)` / `(false)` 判定および `DecodeHexToAscii("4142")` を実行 | UI 状態が `(false, Color.Aqua)` / `(true, Color.Gainsboro)` となり、`"4142"` が `"AB"` に変換される | ボタン UI 状態遷移および HEX デコード変換の検証 |
+| **4** | 異常系 | 引数なし（0 引数）のシーケンスで `Func` を実行 | `HasError == true` かつ `IsCommandGo == false` となり安全停止する | 必須引数 `Message` 欠落時のエラー停止検証 |

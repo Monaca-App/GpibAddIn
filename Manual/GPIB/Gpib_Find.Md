@@ -1,7 +1,5 @@
 ﻿# コマンドリファレンス：Gpib_Find
 
----
-
 ## 概要
 
 **Gpib_Find** は、GPIB バス上（プライマリアドレス `1`〜`30`）をスキャンして応答可能なリスナー機器（接続されている測定器）を検索（NI-488.2 `FindLstn` / `ibln` 相当）し、検出されたアドレス一覧または指定アドレスの存在有無をターゲット変数（または配列）へ格納するコマンドです。
@@ -15,24 +13,28 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE,Gpib_Find, "[Target]", "[AddressToCheck]"
+,SEQUENCE, [ステップキー], Gpib_Find, [BoardNum], [StartPriOrTarget], "[StartSec]", "[TargetKey]"
 ```
 
 ### パラメータ（引数）一覧
 
-| 引数位置 | パラメータ名 | 必須/任意 | 型・制約 | 説明 |
-| :---: | :--- | :---: | :--- | :--- |
-| 第1引数 | `Target` | 任意 | 変数名（`$` / `@`）または配列名（`#`） | 検出結果を格納するターゲットを指定します。<br>・第2引数省略時：検出された全アドレスのカンマ区切り文字列（例: `"1,5,22"`）または配列要素を格納します。<br>・第2引数指定時：該当アドレスが存在すれば `"1"`（または `"TRUE"`）、不在なら `"0"`（`"FALSE"`）を格納します。 |
-| 第2引数 | `AddressToCheck` | 任意 | 整数（`0`〜`30`） | 特定の GPIB アドレス 1 台のみの存在確認を行いたい場合にそのアドレスを指定します。 |
+| 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
+| :--- | :--- | :--- | :--- |
+| 引数1 | `BoardNum` | リスナ探索を行う GPIB ボード番号（必須・既定値: `0`）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数2 | `StartPri` / `Target` | 4 引数指定時は探索開始プライマリアドレス（`0`〜`30`）、2 引数短縮指定時は検出結果の格納先キー（必須）。 | 整数（`0`〜`30`）または格納先 `PARAM` キー名 |
+| 引数3 | `StartSec` | 4 引数指定時の探索開始セカンダリアドレス（任意・省略可・不使用時は `0`）。 | 整数（`0` または `96`〜`126`） |
+| 引数4 | `TargetKey` | 4 引数指定時における検出リスナ一覧の格納先パラメータキー名（任意・2 引数指定時は省略）。 | 格納先 `PARAM` キー名 |
 
 ---
 
 ## 🔄 特殊置換規約・分岐規約の適用
 
-1. **スカラー変数・配列の双方への出力対応**:
-   - 第 1 引数に `#FOUND_LIST`（配列）を指定すると、検出された各アドレスが `#FOUND_LIST[0]`, `#FOUND_LIST[1]`, ... に格納されます。
-2. **レガシー別名互換**:
-   - 旧表記の `GpibFind` や `GPIB_FIND` は内部正規化により本 `Gpib_Find` コマンドへマッピングされます。
+本コマンドの引数における特殊記法および解釈ルールです。
+* **動的置換（`$`）**: 引数内で `$PARAMキー$` のように記述すると、実行時に変数プール（PARAM）の値へ動的置換されます。（適用可能な引数: 全引数対応）
+* **ジャンプ先指定（`#`）**: 本コマンドはジャンプ制御を行わないため適用されません。（適用可能な引数: 非適用）
+* **共通コマンド指定（`@`）**: 本コマンドは外部マクロを呼び出さないため適用されません。（適用可能な引数: 非適用）
+* **カンマのエスケープ**: SCPI コマンド等、引数文字列自体にカンマを含める場合は、必ず `","` と二重引用符で囲んで記述します。
+* **エイリアス（別名）**: `Find`, `GpibFind`
 
 ---
 
@@ -40,28 +42,24 @@
 
 ### スクリプト記述例
 
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+
 ```csv
-,PARAM,IS_DMM_ALIVE,0
-,PARAM,ALL_LISTENERS,
-
-,SEQUENCE,Gpib_Init
-; 1. アドレス22のマルチメータがバス上に存在するか確認
-,SEQUENCE,Gpib_Find, "$IS_DMM_ALIVE", "22"
-,SEQUENCE,Judge, "$IS_DMM_ALIVE", "==", "0", "DEV_NOT_FOUND"
-
-; 2. バス上の全接続機器アドレス一覧を取得して $ALL_LISTENERS へ格納
-,SEQUENCE,Gpib_Find, "$ALL_LISTENERS"
-,SEQUENCE,Exit
-
-:DEV_NOT_FOUND
-,SEQUENCE,Msg_Box, "エラー：GPIBアドレス22の測定器が見つかりません（電源を確認してください）"
-,SEQUENCE,Exit
+COMMAND, "SCAN_GPIB_BUS", "ALL_LISTENERS"
+,PARAM, "ALL_LISTENERS", Work, "検出アドレス一覧", ""
+,SEQUENCE, 010, Gpib_Init, 0
+; ボード 0 上のアクティブなリスナを探索して ALL_LISTENERS へ格納
+,SEQUENCE, 020, Gpib_Find, 0, "ALL_LISTENERS"
+,SEQUENCE, 030, Judge, EQU, "$ALL_LISTENERS$", "", #NO_DEVICE#
+,SEQUENCE, 040, Exit
+,SEQUENCE, #NO_DEVICE#, Msg_Box, "GPIBバス上に応答する測定器が見つかりません。"
+,SEQUENCE, 060, Exit
 ```
 
 ### 実行時の挙動・変数変化
 
-1. 1 回目の `Gpib_Find` ではアドレス `22` に対してリスナー存在チェックが行われ、応答があれば `$IS_DMM_ALIVE` に `"1"`、なければ `"0"` が格納されます。
-2. 2 回目の `Gpib_Find` ではアドレス `1`〜`30` が走査され、応答した機器のアドレス一覧（例: `"5,22"`）が `$ALL_LISTENERS` に格納されます。
+* **実行前の状態**: GPIB ボード `0` が初期化済みで、`"ALL_LISTENERS"` が空文字列 `""` の状態。
+* **実行後の状態**: ステップ `020` の `Gpib_Find` によりバス上の応答機器アドレス一覧（例: `"1,5,22"`）が `"ALL_LISTENERS"` に格納されます。
 
 ---
 
@@ -101,15 +99,17 @@ sequenceDiagram
 
 ## 🧪 ユニットテスト仕様
 
+本コマンドクラス（`Gpib_FindCommand.cs`）に実装されている `RunUnitTest()` メソッドが検証するユニットテストの仕様です。
+
 ### テスト実行前提条件
-- **対象クラス**: `GpibAnalysis.GPIB.Gpib_FindCommand`（`Gpib_FindCommand.cs`）
-- **モック環境**: アドレス `5` と `22` が存在すると応答する `IGpibDriverAdapter` モックが注入されていること。
+
+* **実行トリガー**: `RunUnitTest()` メソッドの呼び出し
+* **有効化条件**: システム全体の最小ログレベル（`ErrorLogger.MinimumLevel`）が `LogLevel.Test` であること（それ以外の場合は無効化ガードにより早期リターン）
+* **検証結果出力**: `_log.LogTest` によるログ出力。検証失敗時は `_log.LogError`、予期せぬ例外発生時は `_log.LogCritical` で記録し、`finally` ブロックで実行前のボード接続状態（`OpenGpibBoards` / `CloseGpibBoards`）および `GpibDLL.DebugDLL`・`DebugReceiveData` を復元します。
 
 ### テストケース一覧
 
-| テストID | テスト観点 | 入力スクリプト | 期待される動作・検証項目 |
-| :--- | :--- | :--- | :--- |
-| `UT-GPIB-FIND-01` | 全リスナー検索 | `,SEQUENCE,Gpib_Find, "$LIST"` | `$LIST` に `"5,22"` が格納されること。 |
-| `UT-GPIB-FIND-02` | 特定アドレス存在確認（あり） | `,SEQUENCE,Gpib_Find, "$EX", "22"` | `$EX` に `"1"` が格納されること。 |
-| `UT-GPIB-FIND-03` | 特定アドレス存在確認（なし） | `,SEQUENCE,Gpib_Find, "$EX", "10"` | `$EX` に `"0"` が格納されること。 |
-
+| No | テストカテゴリ | テスト条件（入力値） | 期待される結果（出力値） | 検証の目的 / 観点 |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | 正常系 | 2 引数指定 `("0", "FOUND_LIST")` および 4 引数指定 `("0", "1", "0", "FOUND_LIST4")` で `Func` を実行 | 両ケースとも `!HasError` となり、`Variables["FOUND_LIST"]` および `Variables["FOUND_LIST4"]` に探索結果が格納される | 短縮 2 引数構文・完全 4 引数構文でのリスナ探索および変数格納の検証 |
+| **2** | 異常系 | 引数不足の 1 引数指定 `("0")` および非数値ボード番号 `("INVALID", "FOUND_LIST")` で `Func` を実行 | 両ケースとも `HasError == true` かつ `IsCommandGo == false` となり安全停止する | 引数個数不足（`ValidateParamRange(2, 4)`）および型変換エラー時の安全停止検証 |

@@ -1,7 +1,5 @@
 ﻿# コマンドリファレンス：Gpib_ReadRegisterByte
 
----
-
 ## 概要
 
 **Gpib_ReadRegisterByte** は、GPIB コントローラチップ（NEC µPD7210 / NAT9914 / TNT4882 互換レジスタまたはドライバステータス領域）の指定オフセットアドレスから 1 バイト（8bit）のレジスタ値を直接読み取り、指定ターゲット変数へ格納する低レベル診断・制御コマンドです。
@@ -15,24 +13,27 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE,Gpib_ReadRegisterByte, "<RegisterOffset>", "<Target>"
+,SEQUENCE, [ステップキー], Gpib_ReadRegisterByte, [BoardId], "[Offset]", "[DestKey]"
 ```
 
 ### パラメータ（引数）一覧
 
-| 引数位置 | パラメータ名 | 必須/任意 | 型・制約 | 説明 |
-| :---: | :--- | :---: | :--- | :--- |
-| 第1引数 | `RegisterOffset` | **必須** | 整数または16進表記（例: `"0"`, `"0x04"`） | 読み取り対象の GPIB コントローラレジスタ番号（オフセット）を指定します。 |
-| 第2引数 | `Target` | **必須** | 変数名（`$` / `@`） | 読み取った 1 バイト値（10進または16進文字列）を格納するターゲット変数を指定します。 |
+| 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
+| :--- | :--- | :--- | :--- |
+| 引数1 | `BoardId` | 読み取り対象の GPIB コントローラボード番号（必須）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数2 | `Offset` | 読み取り対象のコントローラ ASIC 物理レジスタオフセット番号（必須）。 | 整数または 16 進表記（例: `"0"`, `"0x04"`） |
+| 引数3 | `DestKey` | 読み取った 1 バイト値を格納する対象パラメータキー名（必須）。 | 格納先 `PARAM` キー名 |
 
 ---
 
 ## 🔄 特殊置換規約・分岐規約の適用
 
-1. **変数展開とターゲット格納**:
-   - 第 1 引数には `$REG_OFFSET` のような変数を指定でき、読み取り結果は第 2 引数の `$REG_VAL` または `@REG_VAL` に格納されます。
-2. **レガシー別名互換**:
-   - 旧表記の `GpibReadRegisterByte` は内部正規化により本 `Gpib_ReadRegisterByte` コマンドへマッピングされます。
+本コマンドの引数における特殊記法および解釈ルールです。
+* **動的置換（`$`）**: 引数内で `$PARAMキー$` のように記述すると、実行時に変数プール（PARAM）の値へ動的置換されます。（適用可能な引数: 全引数対応）
+* **ジャンプ先指定（`#`）**: 本コマンドはジャンプ制御を行わないため適用されません。（適用可能な引数: 非適用）
+* **共通コマンド指定（`@`）**: 本コマンドは外部マクロを呼び出さないため適用されません。（適用可能な引数: 非適用）
+* **カンマのエスケープ**: SCPI コマンド等、引数文字列自体にカンマを含める場合は、必ず `","` と二重引用符で囲んで記述します。
+* **エイリアス（別名）**: `ReadRegisterByte`, `GpibReadRegisterByte`
 
 ---
 
@@ -40,19 +41,22 @@
 
 ### スクリプト記述例
 
-```csv
-,PARAM,ADSR_VAL,0
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
 
-,SEQUENCE,Gpib_Open, "5"
-; GPIBコントローラのアドレスステータスレジスタ(オフセット0x04)を1バイト読み取る
-,SEQUENCE,Gpib_ReadRegisterByte, "0x04", "$ADSR_VAL"
-,SEQUENCE,Gpib_Close
-,SEQUENCE,Exit
+```csv
+COMMAND, "READ_ASIC_ADSR", "ADSR_VAL"
+,PARAM, "ADSR_VAL", Work, "レジスタ読取値", "0"
+,SEQUENCE, 010, Gpib_Open, 0
+; ボード 0 のオフセット 0x04 レジスタを 1 バイト読み取り ADSR_VAL へ格納
+,SEQUENCE, 020, Gpib_ReadRegisterByte, 0, "0x04", "ADSR_VAL"
+,SEQUENCE, 030, Gpib_Close, 0
+,SEQUENCE, 040, Exit
 ```
 
 ### 実行時の挙動・変数変化
 
-1. `Gpib_ReadRegisterByte` によりオフセット `0x04` のレジスタ値が読み取られ、その 1 バイト値が `$ADSR_VAL`（および `SBuf`）へ格納されます。
+* **実行前の状態**: GPIB ボード `0` がオープン済みで、`"ADSR_VAL"` が `"0"` の状態。
+* **実行後の状態**: ステップ `020` の実行によりオフセット `0x04` の物理レジスタ 1 バイト値が読み出され、`"ADSR_VAL"` に格納されます。
 
 ---
 
@@ -92,15 +96,18 @@ sequenceDiagram
 
 ## 🧪 ユニットテスト仕様
 
+本コマンドクラス（`Gpib_ReadRegisterByteCommand.cs`）に実装されている `RunUnitTest()` メソッドが検証するユニットテストの仕様です。
+
 ### テスト実行前提条件
-- **対象クラス**: `GpibAnalysis.GPIB.Gpib_ReadRegisterByteCommand`（`Gpib_ReadRegisterByteCommand.cs`）
-- **モック環境**: `IGpibDriverAdapter` モックが注入されていること。
+
+* **実行トリガー**: `RunUnitTest()` メソッドの呼び出し
+* **有効化条件**: システム全体の最小ログレベル（`ErrorLogger.MinimumLevel`）が `LogLevel.Test` であること（それ以外の場合は無効化ガードにより早期リターン）
+* **検証結果出力**: `_log.LogTest` によるログ出力。検証失敗時は `_log.LogError`、予期せぬ例外発生時は `_log.LogCritical` で記録し、`finally` ブロックで `GpibDLL.DebugDLL` および `GpibDLL.DebugReceiveData` を元の状態へ復元します。
 
 ### テストケース一覧
 
-| テストID | テスト観点 | 入力スクリプト | 期待される動作・検証項目 |
-| :--- | :--- | :--- | :--- |
-| `UT-GPIB-RDREG-01` | 正常系（レジスタ読取） | `,SEQUENCE,Gpib_ReadRegisterByte, "0x04", "$VAL"` | `ReadRegisterByte(4)` が呼ばれ、戻り値が `$VAL` に格納されること。 |
-| `UT-GPIB-RDREG-02` | 変数展開 | `,SEQUENCE,Gpib_ReadRegisterByte, "$OFF", "$VAL"` | `$OFF` の展開値でレジスタが読み取られること。 |
-| `UT-GPIB-RDREG-03` | 異常系（負数オフセット） | `,SEQUENCE,Gpib_ReadRegisterByte, "-1", "$VAL"` | `ArgumentOutOfRangeException` が送出されること。 |
-
+| No | テストカテゴリ | テスト条件（入力値） | 期待される結果（出力値） | 検証の目的 / 観点 |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | 正常系 | `ParseNumber("10")` による 10 進数表記オフセット解析を実行 | 整数 `10` が返却される | 10 進数レジスタオフセット文字列の変換検証 |
+| **2** | 正常系 | `ParseNumber("0x10")` 解析、および `("0", "0x04", "REG_VAL")` を指定して `Func` を実行 | `16` に変換され、`!HasError` で `Variables["REG_VAL"]` にデバッグ読取値 `"90"` が格納される | 16 進数オフセット解析および物理レジスタ読出・変数格納の検証 |
+| **3** | 異常系 | `ParseNumber(null)`・`ParseNumber("INVALID")` 解析、および不正ボード ID `("INVALID", "0", "REG_VAL")` で `Func` を実行 | 数値解析は `0` を返し、`Func` は `HasError == true`・`IsCommandGo == false` で安全停止する | 異常文字列フォールバックおよび不正 `BoardId` 指定時の安全停止検証 |
