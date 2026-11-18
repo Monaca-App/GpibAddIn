@@ -1,0 +1,140 @@
+; ==============================================================================
+; GPIB Macro Script
+; 生成AI: Antigravity (Gemini 4 Argon (Medium))
+; 対象機器: 横河計測株式会社 (YOKOGAWA) GS200 (G200) 直流電圧・電流源
+; 機器名称: YOKO_G200
+; 準拠マニュアル: IM GS210-01JA (https://cdn.tmi.yokogawa.com/18/6218/files/IMGS210-01JA.pdf)
+; 概要: GS200 初期化・電圧測定・電流測定・定電圧出力設定・定電流出力設定・出力ON/OFF・終了マクロ
+; 作成日: 2026-11-04
+; ==============================================================================
+TITLE, "YOKO_G200"
+,DEVICEBOARD, 0 ; GPIBボード番号
+,DEVICEADDRESS1ST, 1 ; プライマリアドレス(工場出荷時設定:1)
+,DEVICEADDRESS2ND, -1 ; セカンダリアドレス(不使用)
+,DELIMITER, LF ; デリミタ設定(LF)
+,EOI, true ; EOI送出あり
+,SERIALSTATUS, 1, "機能拡張用(未使用)"
+,SERIALSTATUS, 2, "機能拡張用(未使用)"
+,SERIALSTATUS, 3, "エラー発生(EAV)"
+,SERIALSTATUS, 4, "クエスチョナブルステータス(QSB)"
+,SERIALSTATUS, 5, "メッセージあり(MAV)"
+,SERIALSTATUS, 6, "標準イベントサマリ(ESB)"
+,SERIALSTATUS, 7, "サービスリクエスト(RQS/MSS)"
+,SERIALSTATUS, 8, "オペレーションステータス(OSB)"
+
+; ==============================================================================
+; 1. 通信オープン・機器初期化コマンド (INIT)
+; 計測開始前に1回実行し、以降の測定・出力コマンドの高速な繰り返し実行を可能にする
+; ==============================================================================
+COMMAND, "INIT"
+,SEQUENCE, 10, Gpib_Open
+,SEQUENCE, 20, Gpib_Init
+,SEQUENCE, 30, Gpib_Send, "*CLS;:OUTPut OFF"
+,SEQUENCE, 40, Exit
+
+; ==============================================================================
+; 2. 電圧測定コマンド (MEAS_VOLT)
+; 単発測定(COUNT=1)と連続測定を統合し、規定回数到達時はWaitをスキップして即時終了する
+; ==============================================================================
+COMMAND, "MEAS_VOLT", "RESULT_DATA"
+,PARAM, "NPLC", List, "積分時間(PLC)", "1", "5", "10", "25"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.23456E+00"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, ":SENSe:FUNCtion VOLTage;:SENSe:NPLC $NPLC$;:SENSe:TRIGger IMMediate;:SENSe:STATe ON"
+,SEQUENCE, 30, Param_Set, "MEAS_VOLT", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, ":MEASure?"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.6f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.6f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "MEAS_VOLT", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 3. 電流測定コマンド (MEAS_CURR)
+; 単発測定(COUNT=1)と連続測定を統合し、規定回数到達時はWaitをスキップして即時終了する
+; ==============================================================================
+COMMAND, "MEAS_CURR", "RESULT_DATA"
+,PARAM, "NPLC", List, "積分時間(PLC)", "1", "5", "10", "25"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.00000E-02"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, ":SENSe:FUNCtion CURRent;:SENSe:NPLC $NPLC$;:SENSe:TRIGger IMMediate;:SENSe:STATe ON"
+,SEQUENCE, 30, Param_Set, "MEAS_CURR", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, ":MEASure?"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.6f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.6f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "MEAS_CURR", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 4. 定電圧出力設定コマンド (SRC_VOLT)
+; ==============================================================================
+COMMAND, "SRC_VOLT"
+,PARAM, "SRC_RANGE", List, "電圧レンジ(V)", "10", "10E-3", "100E-3", "1", "30"
+,PARAM, "SRC_LEVEL", Text, "出力電圧値(V)", "5.0000"
+,PARAM, "CURR_LIMIT", Text, "電流リミット(A)", "0.100"
+,SEQUENCE, 10, Gpib_Send, ":SOURce:FUNCtion VOLTage;:SOURce:RANGe $SRC_RANGE$;:SOURce:LEVel $SRC_LEVEL$;:SOURce:PROTection:CURRent $CURR_LIMIT$"
+,SEQUENCE, 20, Exit
+
+; ==============================================================================
+; 5. 定電流出力設定コマンド (SRC_CURR)
+; ==============================================================================
+COMMAND, "SRC_CURR"
+,PARAM, "SRC_RANGE", List, "電流レンジ(A)", "10E-3", "1E-3", "100E-3", "200E-3"
+,PARAM, "SRC_LEVEL", Text, "出力電流値(A)", "0.01000"
+,PARAM, "VOLT_LIMIT", Text, "電圧リミット(V)", "10.0"
+,SEQUENCE, 10, Gpib_Send, ":SOURce:FUNCtion CURRent;:SOURce:RANGe $SRC_RANGE$;:SOURce:LEVel $SRC_LEVEL$;:SOURce:PROTection:VOLTage $VOLT_LIMIT$"
+,SEQUENCE, 20, Exit
+
+; ==============================================================================
+; 6. 出力ON/OFF制御コマンド (OUTP_SET)
+; ==============================================================================
+COMMAND, "OUTP_SET"
+,PARAM, "OUTP_STATE", List, "出力状態", "OFF", "ON"
+,SEQUENCE, 10, Gpib_Send, ":OUTPut $OUTP_STATE$"
+,SEQUENCE, 20, Exit
+
+; ==============================================================================
+; 7. 通信クローズ・終了コマンド (CLOSE)
+; 全計測完了時に出力を安全にOFFにし、通信セッションを閉じる
+; ==============================================================================
+COMMAND, "CLOSE"
+,SEQUENCE, 10, Gpib_Send, ":OUTPut OFF"
+,SEQUENCE, 20, Gpib_Close
+,SEQUENCE, 30, Exit

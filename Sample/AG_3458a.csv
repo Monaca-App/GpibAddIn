@@ -1,0 +1,286 @@
+; ==============================================================================
+; GPIB Macro Script
+; 生成AI: Antigravity (Gemini 4 Argon (Medium))
+; 対象機器: Keysight Technologies (旧 Agilent / HP) 3458A 8.5桁デジタル・マルチメータ
+; 機器名称: AG_3458A
+; 準拠マニュアル: Agilent 3458A Multimeter User's Guide (https://dfzk-www.oss-cn-beijing.aliyuncs.com/www-PRD/resources/files/Ag_3458A_UserGuide_en.pdf)
+; 概要: 3458A 初期化・DCV/ACV/OHM/OHMF/DCI/ACI/FREQ 測定・終了マクロ
+; 作成日: 2026-11-04
+; ==============================================================================
+TITLE, "AG_3458A"
+,DEVICEBOARD, 0 ; GPIBボード番号
+,DEVICEADDRESS1ST, 22 ; プライマリアドレス(3458A工場出荷時設定:22)
+,DEVICEADDRESS2ND, -1 ; セカンダリアドレス(不使用)
+,DELIMITER, CRLF ; デリミタ設定(CRLF)
+,EOI, true ; EOI送出あり(END ALWAYSコマンドと併用)
+,SERIALSTATUS, 1, "サブプログラム実行完了"
+,SERIALSTATUS, 2, "ハイまたはローリミット超過"
+,SERIALSTATUS, 3, "SRQコマンド実行"
+,SERIALSTATUS, 4, "電源投入(PON)"
+,SERIALSTATUS, 5, "レディ(コマンド実行完了)"
+,SERIALSTATUS, 6, "エラー発生(ERR)"
+,SERIALSTATUS, 7, "サービスリクエスト(RQS)"
+,SERIALSTATUS, 8, "データレディ(測定データ準備完了)"
+
+; ==============================================================================
+; 1. 通信オープン・機器初期化コマンド (INIT)
+; 計測開始前に1回実行し、以降の測定コマンドの高速な繰り返し実行を可能にする
+; ==============================================================================
+COMMAND, "INIT"
+,SEQUENCE, 10, Gpib_Open
+,SEQUENCE, 20, Gpib_Init
+,SEQUENCE, 30, Gpib_Send, "RESET;END ALWAYS;OFORMAT ASCII;TRIG HOLD"
+,SEQUENCE, 40, Exit
+
+; ==============================================================================
+; 2. 直流電圧測定コマンド (DCV)
+; 単発測定(COUNT=1)と連続測定を統合し、規定回数到達時はWaitをスキップして即時終了する
+; ==============================================================================
+COMMAND, "DCV", "RESULT_DATA"
+,PARAM, "RANGE", List, "測定レンジ(V)", "AUTO", "0.1", "1", "10", "100", "1000"
+,PARAM, "NPLC", List, "積分時間(PLC)", "10", "0.001", "0.01", "0.1", "1", "100"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.00000000E+00"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, "END ALWAYS;OFORMAT ASCII;TRIG HOLD;DCV $RANGE$;NPLC $NPLC$"
+,SEQUENCE, 30, Param_Set, "DCV", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, "TRIG SGL"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.8f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.8f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "DCV", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 3. 交流電圧測定コマンド (ACV)
+; ==============================================================================
+COMMAND, "ACV", "RESULT_DATA"
+,PARAM, "RANGE", List, "測定レンジ(V)", "AUTO", "0.01", "0.1", "1", "10", "100", "1000"
+,PARAM, "NPLC", List, "積分時間(PLC)", "10", "0.001", "0.01", "0.1", "1", "100"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.00000000E+00"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, "END ALWAYS;OFORMAT ASCII;TRIG HOLD;ACV $RANGE$;NPLC $NPLC$"
+,SEQUENCE, 30, Param_Set, "ACV", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, "TRIG SGL"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.8f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.8f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "ACV", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 4. 2端子抵抗測定コマンド (OHM)
+; ==============================================================================
+COMMAND, "OHM", "RESULT_DATA"
+,PARAM, "RANGE", List, "測定レンジ(Ω)", "AUTO", "10", "100", "1E3", "10E3", "100E3", "1E6", "10E6", "100E6", "1E9"
+,PARAM, "NPLC", List, "積分時間(PLC)", "10", "0.001", "0.01", "0.1", "1", "100"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.00000000E+03"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, "END ALWAYS;OFORMAT ASCII;TRIG HOLD;OHM $RANGE$;NPLC $NPLC$"
+,SEQUENCE, 30, Param_Set, "OHM", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, "TRIG SGL"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.8f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.8f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "OHM", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 5. 4端子抵抗測定コマンド (OHMF)
+; ==============================================================================
+COMMAND, "OHMF", "RESULT_DATA"
+,PARAM, "RANGE", List, "測定レンジ(Ω)", "AUTO", "10", "100", "1E3", "10E3", "100E3", "1E6", "10E6", "100E6", "1E9"
+,PARAM, "NPLC", List, "積分時間(PLC)", "10", "0.001", "0.01", "0.1", "1", "100"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.00000000E+03"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, "END ALWAYS;OFORMAT ASCII;TRIG HOLD;OHMF $RANGE$;NPLC $NPLC$"
+,SEQUENCE, 30, Param_Set, "OHMF", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, "TRIG SGL"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.8f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.8f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "OHMF", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 6. 直流電流測定コマンド (DCI)
+; ==============================================================================
+COMMAND, "DCI", "RESULT_DATA"
+,PARAM, "RANGE", List, "測定レンジ(A)", "AUTO", "1E-7", "1E-6", "1E-5", "1E-4", "1E-3", "1E-2", "0.1", "1"
+,PARAM, "NPLC", List, "積分時間(PLC)", "10", "0.001", "0.01", "0.1", "1", "100"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.00000000E-03"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, "END ALWAYS;OFORMAT ASCII;TRIG HOLD;DCI $RANGE$;NPLC $NPLC$"
+,SEQUENCE, 30, Param_Set, "DCI", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, "TRIG SGL"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.8f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.8f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "DCI", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 7. 交流電流測定コマンド (ACI)
+; ==============================================================================
+COMMAND, "ACI", "RESULT_DATA"
+,PARAM, "RANGE", List, "測定レンジ(A)", "AUTO", "1E-4", "1E-3", "1E-2", "0.1", "1"
+,PARAM, "NPLC", List, "積分時間(PLC)", "10", "0.001", "0.01", "0.1", "1", "100"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+1.00000000E-03"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, "END ALWAYS;OFORMAT ASCII;TRIG HOLD;ACI $RANGE$;NPLC $NPLC$"
+,SEQUENCE, 30, Param_Set, "ACI", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, "TRIG SGL"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.8f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.8f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "ACI", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 8. 周波数測定コマンド (FREQ)
+; ==============================================================================
+COMMAND, "FREQ", "RESULT_DATA"
+,PARAM, "RANGE", List, "電圧レンジ(V)", "AUTO", "0.01", "0.1", "1", "10", "100", "1000"
+,PARAM, "COUNT", List, "取得回数", "1", "5", "10", "20", "50", "100", "500", "1000"
+,PARAM, "INTERVAL", List, "サンプリング周期(ms)", "100", "50", "200", "500", "1000", "2000", "5000"
+,PARAM, "TIMESTAMP_EN", List, "タイムスタンプ付加", "false", "true"
+,PARAM, "DEBUG_VAL", Text, "デバッグ疑似データ", "+5.00000000E+01"
+,PARAM, "RESULT_DATA", Range, "測定データ結果", ""
+,PARAM, "LOOP_CNT", Work, "ループカウンタ", "0"
+; Time_Stampはすべての送受信コマンドに先立って最優先で実行する
+,SEQUENCE, 10, Time_Stamp, $TIMESTAMP_EN$
+,SEQUENCE, 20, Gpib_Send, "END ALWAYS;OFORMAT ASCII;TRIG HOLD;FSOURCE ACV;FREQ $RANGE$"
+,SEQUENCE, 30, Param_Set, "FREQ", "0", "LOOP_CNT"
+; --- 測定ループ開始 ---
+,SEQUENCE, #LOOP_START#, Gpib_Send, "TRIG SGL"
+,SEQUENCE, 50, Gpib_DebugData, "$DEBUG_VAL$"
+,SEQUENCE, 60, Gpib_Receive
+,SEQUENCE, 70, Gpib_Wait, "0", 5000
+; --- タイムスタンプ有無によるパース分岐 ---
+,SEQUENCE, 80, Judge, EQU, "$TIMESTAMP_EN$", "true", #PARSE_NO_TS#
+,SEQUENCE, 90, Set_Data, "RESULT_DATA", "[ %s %s ] R:%f", "%s, %s, %0.8f"
+,SEQUENCE, 100, Jump, #CHECK_COUNT#
+,SEQUENCE, #PARSE_NO_TS#, Set_Data, "RESULT_DATA", "R:%f", "%0.8f"
+; --- 取得回数判定（規定回数到達時はWaitをスキップして即時終了） ---
+,SEQUENCE, #CHECK_COUNT#, Param_Add, "FREQ", "LOOP_CNT", "1"
+,SEQUENCE, 120, Judge, LT, $LOOP_CNT$, $COUNT$, #FINISH#
+,SEQUENCE, 130, Wait, $INTERVAL$
+,SEQUENCE, 140, Jump, #LOOP_START#
+; --- 終了処理 ---
+,SEQUENCE, #FINISH#, Time_Stamp, false
+,SEQUENCE, 160, Exit
+
+; ==============================================================================
+; 9. 通信クローズ・終了コマンド (CLOSE)
+; 全計測完了時に通信セッションを安全に閉じる
+; ==============================================================================
+COMMAND, "CLOSE"
+,SEQUENCE, 10, Gpib_Close
+,SEQUENCE, 20, Exit
