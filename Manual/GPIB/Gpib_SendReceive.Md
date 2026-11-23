@@ -5,7 +5,7 @@
 **Gpib_SendReceive** は、接続中の GPIB デバイスに対してクエリコマンド（`*IDN?`, `MEAS:VOLT:DC?` 等）を送信し、直後にその応答電文を受信して内部受信バッファ（`RecData`）および指定ターゲット変数（`SBuf` / `Variables` / `PARAM`）へ格納する送受信一体型コマンドです。  
 第 3 引数 `TimeoutMs` により、応答待ちの受信タイムアウト時間（ミリ秒）をクエリごとに指定できます。
 
-> 💡 **補足**: GPIB 測定器制御で最も頻繁に使用される Query（コマンド送信＋応答受信＋変数格納）トランザクションを 1 ステップで完結できます。
+> 💡 **補足**: GPIB 測定器制御で最も頻繁に使用される Query（コマンド送信＋応答受信＋変数格納）トランザクションを 1 ステップで完結できます。なお、実機ドライバからの物理受信時には、後続の `Set_Data` での空白誤分割を防ぐため、受信文字列中の **半角スペース `' '` は自動的にアンダースコア `'_'` へ置換** されます。
 
 ---
 
@@ -22,7 +22,7 @@
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
 | 引数1 | `QueryCommand` | 送信するクエリコマンド文字列（必須・空文字不可）。 | SCPI クエリ文字列（例: `"*IDN?"`, `"MEAS:VOLT:DC?"`）または `$PARAM$` 置換 |
-| 引数2 | `Target` | 受信した応答文字列の格納先ターゲット変数・パラメータキー名（任意・省略時既定値: `""`）。省略時は内部受信バッファ（`RecData`）のみ更新されます。 | `PARAM` キー名または `$PARAM$` / `@` 指定（例: `"IDN_INFO"`, `"$DC_VOLT$"`） |
+| 引数2 | `Target` | 受信した応答文字列の格納先ターゲット変数・パラメータキー名（任意・省略時既定値: `""`）。省略時は内部受信バッファ（`RecData`）のみ更新されます。 | `PARAM` キー名（例: `"IDN_INFO"`, `"DC_VOLT"`） |
 | 引数3 | `TimeoutMs` | 応答受信のタイムアウト時間［ミリ秒］（任意・省略時既定値: `5000`）。指定時は送受信前に `GpibDLL.TrySetTimeout` で対象機器へ適用されます。 | `1` 以上の整数（例: `"5000"`, `"10000"`）または `$PARAM$` 置換 |
 
 ---
@@ -34,7 +34,7 @@
 * **ジャンプ先指定（`#`）**: 本コマンドはジャンプ制御を行わないため適用されません。（適用可能な引数: 非適用）
 * **共通コマンド指定（`@`）**: 本コマンドは外部マクロを呼び出さないため適用されません。（適用可能な引数: 非適用）
 * **カンマのエスケープ**: SCPI コマンド等、引数文字列自体にカンマを含める場合は、必ず `","` と二重引用符で囲んで記述します。
-* **エイリアス（別名）**: `SendReceive`
+* **エイリアス（別名）**: `SendReceive`, `GpibSendReceive`
 
 ---
 
@@ -42,7 +42,7 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "SAMPLE_GPIB_SENDRECEIVE", "DC_VOLT"
@@ -50,9 +50,9 @@ COMMAND, "SAMPLE_GPIB_SENDRECEIVE", "DC_VOLT"
 ,PARAM, "DC_VOLT", Text, "DC電圧測定値", "0.0"
 ,SEQUENCE, 010, Gpib_Open, "0"
 ; 1. 既定タイムアウト(5000ms)で機器識別情報(*IDN?)をクエリして IDN_INFO へ格納
-,SEQUENCE, 020, Gpib_SendReceive, "*IDN?", "$IDN_INFO$"
+,SEQUENCE, 020, Gpib_SendReceive, "*IDN?", "IDN_INFO"
 ; 2. 受信タイムアウト 10000ms を指定して高分解能DC電圧測定値をクエリし DC_VOLT へ格納
-,SEQUENCE, 030, Gpib_SendReceive, "MEAS:VOLT:DC?", "$DC_VOLT$", "10000"
+,SEQUENCE, 030, Gpib_SendReceive, "MEAS:VOLT:DC?", "DC_VOLT", "10000"
 ,SEQUENCE, 040, Gpib_Close, "0"
 ,SEQUENCE, 050, Exit
 ```
@@ -95,7 +95,7 @@ sequenceDiagram
             Cmd->>Cmd: SetErrorAndHalt
             Cmd-->>Script: 安全停止 (Halt)
         end
-    else QueryCommand 空文字 または TimeoutMs <= 0
+    else QueryCommand 空文字・引数不足・TimeoutMs <= 0
         Cmd->>Cmd: エラーログ出力 (_log.LogError) ＆ 安全停止
         Cmd-->>Script: 安全停止 (Halt)
     end
@@ -106,8 +106,8 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **空クエリ文字列および不正タイムアウト値（`TimeoutMs < 1`）の事前拒否**:
-   - 第 1 引数 `QueryCommand` が空文字列（`allowEmpty: false`）の場合、または第 3 引数 `TimeoutMs` に `0` 以下の整数・非数値文字列が指定された場合は、バス送出前にエラーログを記録して安全停止します。
+1. **必須引数欠落・空クエリ文字列・不正タイムアウト値（`TimeoutMs < 1`）の事前拒否**:
+   - 引数が 0 個または 4 個以上（`ValidateParamRange(1, 3)` 違反）、第 1 引数 `QueryCommand` が空文字列（`allowEmpty: false`）、または第 3 引数 `TimeoutMs` に `0` 以下の整数・非数値文字列が指定された場合は、バス送出前にエラーログを記録して安全停止します。
 2. **送信失敗時の受信スキップと受信失敗時の安全停止**:
    - `GpibDLL.SendGpibData` で送信エラー（`sendRes != 0`）が発生した場合は無駄な受信待ちを行わず即座に `SetErrorAndHalt` で中断し、受信失敗・タイムアウト時も `SetErrorAndHalt(-1, ...)` でシーケンスを安全停止します。
 
@@ -128,4 +128,4 @@ sequenceDiagram
 | No | テストカテゴリ | テスト条件（入力値） | 期待される結果（出力値） | 検証の目的 / 観点 |
 | :---: | :--- | :--- | :--- | :--- |
 | **1** | 正常系 | `IsHeadless = true`・`DebugReceiveData = "MODEL-1000"` の下で `("*IDN?", "IDN_RES", "3000")` を指定して実行 | `!param.HasError` かつ `SBuf["IDN_RES"]` に `"MODEL-1000"` が格納される | クエリ送受信・`TimeoutMs` 指定・ターゲット格納の基本動作検証 |
-| **2** | 異常系・状態復元 | 実行時の予期せぬ例外捕捉（`catch`）および終了時の `finally` クリーンアップ処理 | 例外時は `_log.LogCritical` で記録され、`finally` で `GpibDLL.DebugReceiveData` がテスト開始前の値へ確実に復元される | 例外クラッシュ防御およびグローバル疑似受信データの状態復元検証 |
+| **2** | 異常系・境界値 | 必須引数 `QueryCommand` を省略した 0 引数シーケンス `()` で `Func` を実行 | `invalidParam.HasError == true` かつ `!invalidParam.IsCommandGo` となり安全停止する（`MissingQueryCommandRejected`） | `ValidateParamRange(1, 3)` による必須引数不足時の安全停止検証 |

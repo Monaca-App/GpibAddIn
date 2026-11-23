@@ -2,7 +2,7 @@
 
 ## 概要
 
-**Gpib_Find** は、GPIB バス上（プライマリアドレス `1`〜`30`）をスキャンして応答可能なリスナー機器（接続されている測定器）を検索（NI-488.2 `FindLstn` / `ibln` 相当）し、検出されたアドレス一覧または指定アドレスの存在有無をターゲット変数（または配列）へ格納するコマンドです。
+**Gpib_Find** は、指定した GPIB ボード上のバスをスキャンして応答可能なリスナー機器（接続されている測定器）を検索（`GpibDLL.TryFindListeners`）し、検出されたアドレス一覧をカンマ区切り文字列として指定変数へ格納するコマンドです。
 
 > 💡 **補足**: シーケンス開始前の測定器接続確認（電源入れ忘れや GPIB ケーブル抜けの自動チェック）に使用します。
 
@@ -13,17 +13,21 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE, [ステップキー], Gpib_Find, [BoardNum], [StartPriOrTarget], "[StartSec]", "[TargetKey]"
+; 短縮 2 引数構文（探索開始プライマリ 0 / セカンダリ 0 固定）
+,SEQUENCE, [ステップキー], Gpib_Find, [BoardNum], [Target]
+
+; 完全 4 引数構文（探索開始プライマリ・セカンダリアドレス指定）
+,SEQUENCE, [ステップキー], Gpib_Find, [BoardNum], [StartPri], [StartSec], [TargetKey]
 ```
 
 ### パラメータ（引数）一覧
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` | リスナ探索を行う GPIB ボード番号（必須・既定値: `0`）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
-| 引数2 | `StartPri` / `Target` | 4 引数指定時は探索開始プライマリアドレス（`0`〜`30`）、2 引数短縮指定時は検出結果の格納先キー（必須）。 | 整数（`0`〜`30`）または格納先 `PARAM` キー名 |
-| 引数3 | `StartSec` | 4 引数指定時の探索開始セカンダリアドレス（任意・省略可・不使用時は `0`）。 | 整数（`0` または `96`〜`126`） |
-| 引数4 | `TargetKey` | 4 引数指定時における検出リスナ一覧の格納先パラメータキー名（任意・2 引数指定時は省略）。 | 格納先 `PARAM` キー名 |
+| 引数1 | `BoardNum` | リスナ探索を行う GPIB ボード番号（必須。`ParameterSpec` 上の制約は `min: 0` の整数、`Func` 実行時は整数型検証後に負数指定時は `TryFindListeners` が `false` を返し安全停止）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数2 | `StartPriOrTarget` | `ParameterSpec` 上は必須文字列。<br> **2〜3 引数指定時** ：検出結果の格納先キー名（`Target` 必須、`StartPri=0` / `StartSec=0` として動作）。<br> **4 引数指定時** ：探索開始プライマリアドレス（`StartPri`：`Func` 内で整数検証、既定値 `0`）。 | 格納先 `PARAM` キー名（2〜3 引数時）、または整数（4 引数時） |
+| 引数3 | `StartSec` | `ParameterSpec` 上は任意整数（`min: 0`, `defaultValue: 0`）。<br> **4 引数指定時** ：探索開始セカンダリアドレス（`Func` 内で整数検証、既定値 `0`）。※ 3 引数指定時は `Func` 内で第 3 引数は参照されないため、2 引数または 4 引数で指定してください。 | `0` 以上の整数（例: `0`） |
+| 引数4 | `TargetKey` | **4 引数指定時** ：検出リスナ一覧の格納先パラメータキー名（必須）。 | 格納先 `PARAM` キー名 |
 
 ---
 
@@ -42,15 +46,16 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "SCAN_GPIB_BUS", "ALL_LISTENERS"
 ,PARAM, "ALL_LISTENERS", Work, "検出アドレス一覧", ""
-,SEQUENCE, 010, Gpib_Init, 0
+,SEQUENCE, 010, Gpib_Open, 0
 ; ボード 0 上のアクティブなリスナを探索して ALL_LISTENERS へ格納
 ,SEQUENCE, 020, Gpib_Find, 0, "ALL_LISTENERS"
-,SEQUENCE, 030, Judge, EQU, "$ALL_LISTENERS$", "", #NO_DEVICE#
+; Judge は条件不成立時にジャンプするため、空文字と異なる(NEQ)＝発見成功なら次行へ、空文字(不成立)なら #NO_DEVICE# へ分岐
+,SEQUENCE, 030, Judge, NEQ, "$ALL_LISTENERS$", "", #NO_DEVICE#
 ,SEQUENCE, 040, Exit
 ,SEQUENCE, #NO_DEVICE#, Msg_Box, "GPIBバス上に応答する測定器が見つかりません。"
 ,SEQUENCE, 060, Exit
@@ -58,8 +63,8 @@ COMMAND, "SCAN_GPIB_BUS", "ALL_LISTENERS"
 
 ### 実行時の挙動・変数変化
 
-* **実行前の状態**: GPIB ボード `0` が初期化済みで、`"ALL_LISTENERS"` が空文字列 `""` の状態。
-* **実行後の状態**: ステップ `020` の `Gpib_Find` によりバス上の応答機器アドレス一覧（例: `"1,5,22"`）が `"ALL_LISTENERS"` に格納されます。
+* **実行前の状態**: GPIB ボード `0` がオープン済みで、`"ALL_LISTENERS"` が空文字列 `""` の状態。
+* **実行後の状態**: ステップ `020` の `Gpib_Find` によりバス上の応答機器アドレス一覧がカンマ区切り文字列（例: `"1,5,22"`、応答機器 0 台時は `""`）として `"ALL_LISTENERS"` に格納されます。ステップ `030` の `Judge, NEQ` により、機器が 1 台以上見つかっていればステップ `040` で正常終了し、1 台も見つからず `""` の場合（`NEQ` 不成立）は `#NO_DEVICE#` へジャンプして警告を表示します。
 
 ---
 
@@ -68,32 +73,38 @@ COMMAND, "SCAN_GPIB_BUS", "ALL_LISTENERS"
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_FindCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (FindLstn / ibln)"
-    participant Var as "VariableManager (変数・配列管理)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_FindCommand"
+    participant Dll as "GpibDLL (TryFindListeners)"
+    participant Var as "Gpib_ReceiveCommand.StoreTargetValue"
 
-    Script->>Cmd: Execute(context, target, addressToCheck)
-    alt addressToCheck が指定されている場合
-        Cmd->>Drv: CheckListener(addressToCheck) (ibln)
-        Drv-->>Cmd: exists (true / false)
-        Cmd->>Var: Target へ "1" または "0" を格納
-    else addressToCheck 省略時 (全アドレススキャン)
-        Cmd->>Drv: FindAllListeners(1..30) (FindLstn)
-        Drv-->>Cmd: 検出アドレス配列 int[] (例: [5, 22])
-        Cmd->>Var: Target ($ / @ ならカンマ区切り, # なら配列要素) へ格納
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(2, 4)
+    alt 4 引数指定時
+        Cmd->>Cmd: TryGetInt(BoardNum, StartPri, StartSec) & TargetKey 取得
+    else 2〜3 引数指定時
+        Cmd->>Cmd: TryGetInt(BoardNum), StartPri = 0, StartSec = 0, Target (第2引数) 取得
     end
-    Cmd-->>Script: 正常終了 (Next Step)
+    Cmd->>Dll: TryFindListeners(boardNum, startPri, startSec, out discovered)
+    alt リスナ探索成功 (true)
+        Dll-->>Cmd: 検出アドレス配列 discovered
+        Cmd->>Var: StoreTargetValue(param, targetKey, string.Join(",", discovered))
+        Cmd-->>Script: 正常終了 (Next Step)
+    else 探索失敗 (ボード未オープン・範囲外BoardNum・ドライバエラー等)
+        Dll-->>Cmd: false
+        Cmd->>Cmd: SetErrorAndHalt(-1, errMsg) (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
+    end
 ```
 
 ---
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **未検出時の安全な結果格納**:
-   - バス上に機器が 1 台も見つからない場合でも例外でクラッシュせず、空文字列 `""`（または個別チェック時は `"0"`）を格納して `Judge` で分岐処理できるようにします。
-2. **アドレス範囲（`0`〜`30`）の検証**:
-   - 第 2 引数に範囲外の数値が指定された場合は `ArgumentOutOfRangeException` を送出します。
+1. **引数個数・数値型バリデーション保護**:
+   - `ValidateParamRange(2, 4)` により引数が 1 個以下または 5 個以上の場合、および `BoardNum`（4 引数時は `StartPri`・`StartSec` も含む）が整数変換できない場合や格納先キー名が空文字列の場合は、`TryGetInt` / `TryGetString` 内のエラー処理によりエラーログを出力して安全停止します。
+2. **探索結果の格納形式とドライバ失敗時の安全停止**:
+   - 探索自体は成功して応答機器が 0 台だった場合は空文字列 `""` が格納されるため、後続の `Judge` コマンド（`NEQ` 判定）で未接続分岐を行えます。一方、負の `BoardNum` 指定・ボード未初期化・ハードウェア異常により `GpibDLL.TryFindListeners` が `false` を返した場合は `_log.LogError` を記録し、`SetErrorAndHalt(-1, errMsg)` により後続ステップを安全停止します。
 
 ---
 

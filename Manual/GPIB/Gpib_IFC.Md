@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_IFC** は、GPIB バス上の **IFC（Interface Clear）単一制御ライン** を一定時間（規定 100μs 以上）アサートしてバス上の全デバイスのインターフェース機能（Talker / Listener 状態等）を強制初期化し、コントローラ（PC）へバスの主導権を取り戻すコマンドです。
+**Gpib_IFC** は、オープン中の全 GPIB ボードの **IFC（Interface Clear）単一制御ライン** を一定時間（規定 100μs 以上）アサートしてバス上の全デバイスのインターフェース機能（Talker / Listener 状態等）を強制初期化し、コントローラ（PC）へバスの主導権を取り戻すコマンドです。
 
-> 💡 **補足**: 測定器の応答ハングアップ等で GPIB バスがロックした際の緊急バスリセット（NI-488.2 `ibsic` 相当）や、シーケンス冒頭でのバス初期化に使用します。
+> 💡 **補足**: 測定器の応答ハングアップ等で GPIB バスがロックした際の緊急バスリセットや、シーケンス冒頭でのバス初期化に使用します。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` | IFC（Interface Clear）パルスを送出する GPIB インターフェースボード番号（任意・省略時既定値: `0`）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数1 | `BoardNum` | IFC（Interface Clear）パルスを送出する GPIB インターフェースボード番号（任意・省略時既定値: `0`）。※引数バリデーション（`0` 以上の整数）のみ行われ、実際の送出はオープン中の全 GPIB ボードに対して一括実行されます。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
 
 ---
 
@@ -39,16 +39,17 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
-COMMAND, "SAMPLE_GPIB_IFC", ""
-,SEQUENCE, 010, Gpib_Open, "5"
+COMMAND, "SAMPLE_GPIB_IFC", "DEV_ID"
+,PARAM, "DEV_ID", Work, "機器識別情報", ""
+,SEQUENCE, 010, Gpib_Open, 0
 ; 1. IFCを送出してGPIBバス上のTalker/Listener状態を初期化し、RENをONにする
 ,SEQUENCE, 020, Gpib_IFC
 ,SEQUENCE, 030, Gpib_REN, "ON"
 ; 2. 正常化したバスでID照会を実行
-,SEQUENCE, 040, Gpib_SendReceive, "*IDN?", "@DEV_ID"
+,SEQUENCE, 040, Gpib_SendReceive, "*IDN?", "DEV_ID"
 ,SEQUENCE, 050, Gpib_Close
 ,SEQUENCE, 060, Exit
 ```
@@ -56,7 +57,7 @@ COMMAND, "SAMPLE_GPIB_IFC", ""
 ### 実行時の挙動・変数変化
 
 * **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
-* **実行後の状態**: `Gpib_IFC` により GPIB バスの IFC ラインが約 100μs アサートされ、すべてのスレーブ機器の GPIB インターフェース状態がアイドル（Untalk / Unlisten）にリセットされます（測定器内部の測定設定自体は維持されます）。
+* **実行後の状態**: `Gpib_IFC` によりオープン中の全 GPIB ボードから IFC 信号が送出され、すべてのスレーブ機器の GPIB インターフェース状態がアイドル（Untalk / Unlisten）にリセットされます（測定器内部の測定設定自体は維持されます）。
 
 ---
 
@@ -65,18 +66,26 @@ COMMAND, "SAMPLE_GPIB_IFC", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_IFCCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (NI-488.2 ibsic)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_IFCCommand"
+    participant Parent as "IGpibAnalysisParent (GpibMainForm)"
+    participant Dll as "GpibDLL / IGpibDriver"
 
-    Script->>Cmd: Execute(context)
-    Cmd->>Drv: SendInterfaceClear() (ibsic: IFCパルス送出)
-    alt システムコントローラ権限あり・成功
-        Drv-->>Cmd: IFC送出完了 (Controller-In-Charge 確立)
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 1) & TryGetInt(BoardNum >= 0)
+    alt 引数バリデーション成功
+        alt メイン画面連携時 (parent != null)
+            Cmd->>Parent: SendGpibIfcAsync()
+            Parent->>Dll: SendGpibIfc() (接続中全ボードへIFC送出)
+            Dll-->>Parent: IFC 送出完了
+        else ヘッドレス実行時 (parent == null)
+            Cmd->>Dll: SendGpibIfc()
+            Dll-->>Cmd: IFC 送出完了
+        end
         Cmd-->>Script: 正常終了 (Next Step)
-    else システムコントローラ権限なし (ESAC)
-        Drv-->>Cmd: GpibException (ESAC)
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    else 負数・非数値・余剰引数指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -84,10 +93,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **システムコントローラ権限（`ESAC`）の確認**:
-   - IFC ラインの駆動は System Controller のみに許可されているため、権限がない場合は `GpibException` を送出します。
-2. **`Gpib_DCL` との役割分担**:
-   - `Gpib_IFC` は通信インターフェース状態のみをクリアします。機器内部のバッファや設定をクリアしたい場合は [`Gpib_DCL`](./Gpib_DCL.Md) または [`Gpib_SDC`](./Gpib_SDC.Md) を使用します。
+1. **引数境界・型バリデーション保護**:
+   - `ValidateParamRange(0, 1)` 違反（2 個以上の引数指定）または第 1 引数 `BoardNum` に負数（`"-1"` 等）や非数値文字列が指定された場合は、`SetErrorAndHalt` によりエラーログを出力して安全停止します。
+2. **未接続・ドライバエラー時の安全継続と [`Gpib_DCL`](./Gpib_DCL.Md) との役割分担**:
+   - ポート未接続時は送出を安全にスキップし、物理ドライバがエラーコードを返した場合もログ出力のみで強制停止せず次ステップへ継続します。また、`Gpib_IFC` は通信インターフェース状態のみを初期化するため、機器内部の入出力バッファをクリアしたい場合は [`Gpib_DCL`](./Gpib_DCL.Md) または [`Gpib_SDC`](./Gpib_SDC.Md) を使用してください。
 
 ---
 

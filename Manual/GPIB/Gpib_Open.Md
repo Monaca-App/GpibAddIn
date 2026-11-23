@@ -2,10 +2,9 @@
 
 ## 概要
 
-**Gpib_Open** は、指定された GPIB スレーブ機器アドレス（Primary Address: `0`〜`30`）または UI 設定の GPIB ボード／デバイス記述子を開き、GPIB バス通信セッションを初期化するコマンドです。
-実行時に通信制御の排他選択モードを **GPIB モード** （`GpibAnalysis.GPIB.dll`）へ確定させます。
+**Gpib_Open** は、システムに登録されている GPIB インターフェースボードを一括オープンし、GPIB バス通信セッションを開始するコマンドです。
 
-> 💡 **補足**: NI-488.2 / VISA 互換ドライバまたは抽象化インターフェース（`IGpibDriverAdapter`）を介して対象機器のデバイスディスクリプタを取得し、受信バッファ（`SBuf`）を初期化します。
+> 💡 **補足**: メイン画面連携時（`parent != null`）は、設定されている全 GPIB ボードのオープン（`GpibDLL.OpenGpibBoards`）に加えて IFC 送出・DCL 送出・REN 有効化および接続ステータス LED（緑点灯）の更新を一括で実行します。
 
 ---
 
@@ -21,7 +20,7 @@
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` | 接続オープンする GPIB インターフェースボード番号（任意・省略時既定値: `0`）。省略時は全設定ボードを一括オープンし IFC/DCL/REN 初期化を実行します。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数1 | `BoardNum` | 接続オープンする GPIB インターフェースボード番号（任意・省略時既定値: `0`）。※引数バリデーション（`0` 以上の整数）のみ行われ、実際のオープン処理は登録されている全設定ボードに対して一括実行されます。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
 
 ---
 
@@ -40,13 +39,13 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "GPIB_SESSION_START", "DEV_ID"
 ,PARAM, "BOARD_NO", Number, "GPIBボード番号", "0"
 ,PARAM, "DEV_ID", Work, "機器ID応答", ""
-; GPIBボード 0 をオープンし、機器リセット(*RST)とID照会(*IDN?)を実行
+; GPIBボードをオープンし、機器リセット(*RST)とID照会(*IDN?)を実行
 ,SEQUENCE, 010, Gpib_Open, "$BOARD_NO$"
 ,SEQUENCE, 020, Gpib_Send, "*RST"
 ,SEQUENCE, 030, Gpib_SendReceive, "*IDN?", "DEV_ID"
@@ -56,8 +55,8 @@ COMMAND, "GPIB_SESSION_START", "DEV_ID"
 
 ### 実行時の挙動・変数変化
 
-* **実行前の状態**: GPIB ボードが未接続（オフライン）であり、`"BOARD_NO"` に `"0"` が設定されている状態。
-* **実行後の状態**: ステップ `010` の `Gpib_Open` によりボードがオープンされて IFC・DCL・REN 有効化および緑色接続 LED 点灯が行われ、ステップ `030` で応答が `"DEV_ID"` に格納されます。
+* **実行前の状態**: GPIB ボードが未接続（クローズ状態）であり、`"BOARD_NO"` に `"0"` が設定されている状態。
+* **実行後の状態**: ステップ `010` の `Gpib_Open` により登録ボードがオープンされて IFC・DCL・REN 有効化および緑色接続 LED 点灯が行われ、ステップ `030` で応答が `"DEV_ID"` に格納されます。
 
 ---
 
@@ -66,20 +65,26 @@ COMMAND, "GPIB_SESSION_START", "DEV_ID"
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_OpenCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (NI-488.2 / VISA)"
-    participant SBuf as "GPIB 受信電文バッファ (SBuf)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_OpenCommand"
+    participant Parent as "IGpibAnalysisParent (GpibMainForm)"
+    participant Dll as "GpibDLL / IGpibDriver"
 
-    Script->>Cmd: Execute(context, deviceAddr, boardIdx, timeout)
-    Cmd->>SBuf: Clear() (受信バッファ初期化)
-    Cmd->>Drv: OpenDevice(boardIdx, deviceAddr, timeout)
-    alt デバイスオープン成功
-        Drv-->>Cmd: デバイスハンドル返却
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 1) & TryGetInt(BoardNum >= 0)
+    alt 引数バリデーション成功
+        alt メイン画面連携時 (parent != null)
+            Cmd->>Parent: OpenGpibConnection()
+            Parent->>Dll: OpenGpibBoards() + IFC / DCL / REN ON
+            Parent-->>Cmd: UI状態更新 (REN On / 緑LED点灯)
+        else ヘッドレス実行時 (parent == null)
+            Cmd->>Dll: OpenGpibBoards()
+            Dll-->>Cmd: ボードオープン完了
+        end
         Cmd-->>Script: 正常終了 (Next Step)
-    else ボード未認識 または アドレス範囲外 (0〜30以外)
-        Drv-->>Cmd: GpibException (EDVR / EARG)
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    else 負数・非数値・余剰引数指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -87,10 +92,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **GPIB アドレス範囲（`0`〜`30`）の厳格検証**:
-   - IEEE 488 規格外のプライマリアドレス（負数や `31`［Untalk/Unlisten 予約値］以上）が指定された場合は、`ArgumentOutOfRangeException` を送出してバス異常を防止します。
-2. **二重オープンの安全な再バインド**:
-   - すでにオープンされている状態で再度 `Gpib_Open` が呼ばれた場合は、既存ハンドルを安全に整理してから新規アドレスでオープンします。
+1. **引数境界およびボード番号（`0` 以上）の事前検証**:
+   - `ValidateParamRange(0, 1)` 違反（2 個以上の引数指定）または第 1 引数 `BoardNum` に負数（`"-1"` 等）や非数値文字列が指定された場合は、`SetErrorAndHalt` によりエラーログを記録してシーケンスを安全停止します。
+2. **オープン失敗時の UI 保護**:
+   - 実機ドライバ未導入やボード未認識により `OpenGpibBoards()` が失敗した場合は、`GetConnectionStates(false)` に従い REN オフ・未接続状態を維持して誤操作を防止します。
 
 ---
 

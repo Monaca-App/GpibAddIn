@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_WriteRegisterByte** は、GPIB コントローラチップ（NEC µPD7210 / NAT9914 / TNT4882 互換レジスタまたはドライバ設定領域）の指定オフセットアドレスに対して 1 バイト（8bit）の値を直接書き込む低レベル制御コマンドです。
+**Gpib_WriteRegisterByte** は、 **Interface 社製 GPIB ドライバ（`gpc4304.dll`）専用** の低レベル制御コマンドであり、指定した GPIB ボード上のコントローラチップ物理レジスタの指定オフセットアドレスに対して 1 バイト（`0`〜`255` / `0x00`〜`0xFF`）の値を直接書き込みます（`GpibDLL.PciGpibExWriteRegisterByte`）。
 
-> 💡 **補足**: [`Gpib_ReadRegisterByte`](./Gpib_ReadRegisterByte.Md) と対になるハードウェアレジスタ直接制御コマンドであり、特殊タイミング設定や補助コマンドレジスタ（AUXMR 等）の直接操作に使用します。
+> 💡 **補足（ドライバメーカー制限）**: [`Gpib_ReadRegisterByte`](./Gpib_ReadRegisterByte.Md) と対になるハードウェアレジスタ直接制御コマンドです。Interface 社製ドライバ（`gpc4304.dll`）およびデバッグシミュレーションモードに対応しており、CONTEC 社製ドライバ（`CGPIB.DLL`）選択時は未サポートエラー（`-5`）をログ出力して停止せず次ステップへ継続します。
 
 ---
 
@@ -13,16 +13,16 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE, [ステップキー], Gpib_WriteRegisterByte, [BoardId], "[Offset]", "[WriteVal]"
+,SEQUENCE, [ステップキー], Gpib_WriteRegisterByte, <BoardId>, "<Offset>", "<WriteVal>"
 ```
 
 ### パラメータ（引数）一覧
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardId` | 書き込み対象の GPIB コントローラボード番号（必須）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
-| 引数2 | `Offset` | 書き込み対象のコントローラ ASIC 物理レジスタオフセット番号（必須）。 | 整数または 16 進表記（例: `"0x05"`） |
-| 引数3 | `WriteVal` | レジスタへ直接書き込む 1 バイト値（必須）。 | `0`〜`255` の整数または 16 進表記（例: `"0x02"`, `"128"`） |
+| 引数1 | `BoardId` | 書き込み対象の GPIB コントローラボード番号（必須。`ParameterSpec` 上の制約は `0` 以上、`Func` 実行時は整数型検証を行い `(short)` キャストしてドライバ API へ渡します）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数2 | `Offset` | 書き込み対象のコントローラ ASIC 物理レジスタオフセット番号（非空必須）。※空文字 `""`（または空白）を渡した場合は `TryGetString(allowEmpty: false)` によりエラーコード `-10` で安全停止し、`"INVALID"` 等の非空・非数値文字列の場合に `ParseNumber` で `0` にフォールバックします。 | 10 進整数または `"0x"` 付き 16 進表記（例: `"5"`, `"0x05"`） |
+| 引数3 | `WriteVal` | レジスタへ直接書き込む 1 バイト値（非空必須）。※空文字 `""`（または空白）時はエラーコード `-10` で安全停止し、非空・非数値文字列時は `ParseNumber` で `0` にフォールバックします。 | `0`〜`255` の 10 進整数または `"0x00"`〜`"0xFF"` の 16 進表記（例: `"0x02"`, `"128"`） |
 
 ---
 
@@ -41,14 +41,14 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "WRITE_ASIC_AUXMR", ""
 ,PARAM, "AUXMR_OFFSET", Text, "対象レジスタオフセット", "0x05"
 ,PARAM, "CMD_BYTE", Text, "書込コマンドバイト", "0x02"
 ,SEQUENCE, 010, Gpib_Open, 0
-; ボード 0 の補助コマンドレジスタ(0x05)へ 0x02 を直接書き込む
+; ボード 0 の補助コマンドレジスタ(0x05)へ 0x02 を直接書き込む (Interface 専用・3 引数必須)
 ,SEQUENCE, 020, Gpib_WriteRegisterByte, 0, "$AUXMR_OFFSET$", "$CMD_BYTE$"
 ,SEQUENCE, 030, Gpib_Close, 0
 ,SEQUENCE, 040, Exit
@@ -66,19 +66,31 @@ COMMAND, "WRITE_ASIC_AUXMR", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_WriteRegisterByteCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (WriteRegisterByte)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_WriteRegisterByteCommand"
+    participant Dll as "GpibDLL.PciGpibExWriteRegisterByte"
 
-    Script->>Cmd: Execute(context, regOffset, byteValue)
-    Cmd->>Cmd: regOffset と byteValue(0〜255) の数値パース・検証
-    Cmd->>Drv: WriteRegisterByte(regOffset, byteValue)
-    alt レジスタ書込成功
-        Drv-->>Cmd: 書込完了
-        Cmd-->>Script: 正常終了 (Next Step)
-    else 範囲外値 または ドライバエラー
-        Drv-->>Cmd: ArgumentOutOfRangeException / GpibException
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(3, 3) & TryGetInt(BoardId) & TryGetString(Offset, WriteVal 非空検証)
+    alt 3 引数かつ BoardId が整数・Offset / WriteVal が非空の場合
+        Cmd->>Cmd: ParseNumber(Offset) & ParseNumber(WriteVal) (非空の非数値時は 0)
+        alt WriteVal が 0〜255 の有効範囲内の場合
+            Cmd->>Dll: PciGpibExWriteRegisterByte((short)boardId, offset, (byte)writeVal)
+            alt 書込成功 (戻り値 == 0 : Interface ドライバ / DebugDLL)
+                Dll-->>Cmd: result = 0
+                Cmd-->>Script: 正常終了 (Next Step)
+            else ドライバ未対応 (CONTEC: -5) または書込失敗 (戻り値 != 0)
+                Dll-->>Cmd: result != 0
+                Cmd->>Cmd: _log.LogError (エラーログ記録のみ)
+                Cmd-->>Script: 次ステップへ継続
+            end
+        else WriteVal が 0〜255 範囲外の場合
+            Cmd->>Cmd: _log.LogError (範囲外ログ記録のみ)
+            Cmd-->>Script: 書込を行わず次ステップへ継続
+        end
+    else 引数個数不一致 または 非数値 BoardId / 空 Offset / 空 WriteVal 指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -86,10 +98,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **1 バイト範囲（`0`〜`255`）およびオフセット範囲の検証**:
-   - `ByteValue` が `0`〜`255` の範囲外である場合や、負のオフセットが指定された場合は `ArgumentOutOfRangeException` を送出します。
-2. **未オープン時の実行防止**:
-   - GPIB ボードが開かれていない状態で実行された場合は `InvalidOperationException` を送出します。
+1. **3 引数必須および `BoardId`・非空文字列バリデーション保護**:
+   - `ValidateParamRange(3, 3)` により引数が 3 個ちょうどでない場合（2 引数以下または 4 引数以上：エラーコード `-10`）、第 1 引数 `BoardId` に整数変換できない非数値文字列が指定された場合（エラーコード `-11`）、または第 2 引数 `Offset` もしくは第 3 引数 `WriteVal` に空文字（空白）が指定された場合（`TryGetString(allowEmpty: false)` エラーコード `-10`）は、`SetErrorAndHalt` によりエラーログを記録して安全停止します（非空・非数値文字列の場合は `ParseNumber` で `0` にフォールバックします）。
+2. **1 バイト範囲外（`0`〜`255` 以外）および CONTEC 環境・ドライバ失敗時の非停止保護**:
+   - 第 3 引数 `WriteVal` の変換結果が `0`〜`255` の範囲外である場合は物理書き込みを行わずに `_log.LogError` を出力してリターンします。また、CONTEC ドライバ環境（`-5`）や範囲外ボード ID・ハードウェア書き込みエラー時（戻り値 `!= 0`）も `_log.LogError` のみで強制停止せず次ステップへ進みます。
 
 ---
 

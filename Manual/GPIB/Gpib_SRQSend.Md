@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_SRQSend** は、PC 側の GPIB インターフェースボードがスレーブ（非コントローラ／測定器エミュレータ）として動作している際に、シリアルポール応答用のステータスバイト（STB）をセットして **SRQ（Service Request）要求ライン** をマスターコントローラへ向けてアサート（NI-488.2 `ibrsv` 相当）するコマンドです。
+**Gpib_SRQSend** は、PC 側の GPIB インターフェースボードがスレーブ（非コントローラ／測定器エミュレータ）として動作している際に、シリアルポール応答用のステータスバイト（STB）をセットして **SRQ（Service Request）要求ライン** をマスターコントローラへ向けて送出・解除（`GpibDLL.TrySendServiceRequest`）するコマンドです。
 
-> 💡 **補足**: PC を GPIB スレーブ機器（擬似測定器）として動作させ、外部の GPIB マスターへ処理完了やエラー発生を通知する用途に使用します。
+> 💡 **補足**: PC を GPIB スレーブ機器（擬似測定器）として動作させ、外部の GPIB マスターへ処理完了やエラー発生を通知する用途に使用します。任意のステータスバイト値（`"0x50"` 等）を指定したい場合や SRQ ラインを取り下げたい場合（`SendSrq = "0"`）は、 **必ず 3 引数構文** で指定してください（0〜2 引数時は `SendSrq = "1"`, `StatusByte = "0x40"` の既定値で動作します）。
 
 ---
 
@@ -13,16 +13,20 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE, [ステップキー], Gpib_SRQSend, "[BoardNum: 0]", "[SendSrq: 1]", "[StatusByte: 0x40]"
+; 0〜1 引数短縮構文（BoardNum 省略時 0、SendSrq = "1"［送出ON］、StatusByte = "0x40" 既定）
+,SEQUENCE, [ステップキー], Gpib_SRQSend, "[BoardNum: 0]"
+
+; 3 引数完全構文（SRQ ON/OFF フラグおよび任意のステータスバイトを指定）
+,SEQUENCE, [ステップキー], Gpib_SRQSend, <BoardNum>, "<SendSrq: 1 / 0>", "<StatusByte>"
 ```
 
 ### パラメータ（引数）一覧
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` | SRQ 制御を行う対象の GPIB ボード番号（任意・既定値: `0`）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
-| 引数2 | `SendSrq` | SRQ ライン送出フラグ（任意・既定値: `"1"`＝送出、`"0"`＝停止）。 | `"1"` / `"true"`（アサート）または `"0"` / `"false"`（解除） |
-| 引数3 | `StatusByte` | 設定する 8bit ステータスバイト値（任意・既定値: `"0x40"`）。 | 整数または 16 進表記（例: `"0x40"`, `"64"`） |
+| 引数1 | `BoardNum` | SRQ 制御を行う対象の GPIB ボード番号（任意・省略時既定値: `0` 固定）。※ `AnalysisParam.TryGetInt` は 10 進数および `"0x"` / `"&H"` 付き 16 進表記に対応しているため、`"INVALID"` 等の非数値文字列を渡した場合のみ型変換エラー（`-11`）で安全停止し、負の整数や `"0x50"`（＝整数 `80`）のような範囲外ボード番号を渡した場合は `TrySendServiceRequest` が `false` を返して `_log.LogError` を記録し次ステップへ継続します。 | `0` 以上の整数（10 進または `"0x"` / `"&H"` 16 進表記、例: `0`）または `$PARAM$` 置換 |
+| 引数2 | `SendSrq` | **3 引数指定時** ：SRQ ライン送出フラグ（`"1"` または `"true"`［大文字・小文字非区別］＝送出アサート、それ以外＝送出停止）。※ 0〜2 引数時は既定値 `"1"` が使用されます。 | `"1"` / `"true"` または `"0"` / `"false"` |
+| 引数3 | `StatusByte` | **3 引数指定時** ：設定するステータスバイト値（非空必須）。※ 0〜2 引数時は既定値 `"0x40"`（`64`）が使用されます。 | 10 進整数または `"0x"` 付き 16 進表記（例: `"0x50"`, `"64"`, `"0x00"`） |
 
 ---
 
@@ -41,25 +45,25 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "SAMPLE_GPIB_SRQSEND", ""
-,PARAM, "STB_MAV_RQS", Text, "STB_MAV_RQS", "0x50"
-,SEQUENCE, 010, Gpib_Open, "1"
-; 1. RQSビット(0x40) + MAVビット(0x10) = 0x50 をセットしてマスターへSRQを送出
-,SEQUENCE, 020, Gpib_SRQSend, "$STB_MAV_RQS$"
-; 2. マスターからのシリアルポール完了後、SRQ要求をクリア(0x00)
+,PARAM, "STB_MAV_RQS", Text, "SRQステータスバイト", "0x50"
+,SEQUENCE, 010, Gpib_Open, 0
+; 1. ボード 0 に対し 3 引数構文で RQS(0x40)+MAV(0x10)=0x50 をセットして SRQ を送出(1)
+,SEQUENCE, 020, Gpib_SRQSend, 0, "1", "$STB_MAV_RQS$"
+; 2. マスターからのシリアルポール待機後、3 引数構文で SRQ 送出を停止(0)し STB を 0x00 にクリア
 ,SEQUENCE, 030, Wait, "1000"
-,SEQUENCE, 040, Gpib_SRQSend, "0x00"
+,SEQUENCE, 040, Gpib_SRQSend, 0, "0", "0x00"
 ,SEQUENCE, 050, Gpib_Close
 ,SEQUENCE, 060, Exit
 ```
 
 ### 実行時の挙動・変数変化
 
-* **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
-* **実行後の状態**: `Gpib_SRQSend, "$STB_MAV_RQS"` によりステータスバイト `0x50`（ビット 6 = `1`）がボードレジスタに書き込まれ、GPIB バスの SRQ ラインがアサートされます。 `Gpib_SRQSend, "0x00"` によりステータスバイトが `0x00` に更新され、SRQ 要求が取り下げられます。
+* **実行前の状態**: GPIB ボード `0` がオープンされ、`"STB_MAV_RQS"` に `"0x50"` が設定されている状態。
+* **実行後の状態**: ステップ `020` の `Gpib_SRQSend, 0, "1", "$STB_MAV_RQS$"` によりステータスバイト `0x50`（`80`）で SRQ 送出が有効化されます。ステップ `040` の `Gpib_SRQSend, 0, "0", "0x00"` によりステータスバイトが `0x00` に更新され、SRQ 送出が解除されます。
 
 ---
 
@@ -68,19 +72,25 @@ COMMAND, "SAMPLE_GPIB_SRQSEND", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_SRQSendCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (NI-488.2 ibrsv)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_SRQSendCommand"
+    participant Dll as "GpibDLL (TrySendServiceRequest)"
 
-    Script->>Cmd: Execute(context, statusByteStr)
-    Cmd->>Cmd: statusByteStr の数値パース (0〜255)
-    Cmd->>Drv: RequestService(statusByte) (ibrsv)
-    alt 設定成功
-        Drv-->>Cmd: STB設定・SRQアサート完了
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 3) & TryGetInt(BoardNum, 省略時 0)
+    alt 3 引数指定時
+        Cmd->>Cmd: SendSrq ("1"/"true") & StatusByte (10進 / 0x16進, 非空検証) 取得
+    else 0〜2 引数指定時
+        Cmd->>Cmd: SendSrq = true ("1"), StatusByte = 0x40 (64)
+    end
+    Cmd->>Dll: TrySendServiceRequest(boardNum, sendSrq, stb)
+    alt SRQ 制御成功 (true)
+        Dll-->>Cmd: true
         Cmd-->>Script: 正常終了 (Next Step)
-    else 値範囲外 (0〜255以外) または ドライバエラー
-        Drv-->>Cmd: ArgumentOutOfRangeException / GpibException
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    else ドライバエラー / 範囲外BoardNum (false)
+        Dll-->>Cmd: false
+        Cmd->>Cmd: _log.LogError (エラーログ記録のみ)
+        Cmd-->>Script: 次ステップへ継続
     end
 ```
 
@@ -88,10 +98,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **1 バイト範囲（`0`〜`255`）の検証**:
-   - `0`〜`255`（`0x00`〜`0xFF`）の範囲を超える数値や非数値が指定された場合は `ArgumentOutOfRangeException` / `FormatException` を送出します。
-2. **未オープン時の実行防止**:
-   - GPIB ボードが開かれていない状態で実行された場合は `InvalidOperationException` を送出します。
+1. **引数個数（`0`〜`3`）・`BoardNum` 整数検証・`StatusByte` 検証**:
+   - `ValidateParamRange(0, 3)` 違反（4 個以上の引数指定：エラーコード `-10`）、第 1 引数 `BoardNum` に非数値文字列（`"INVALID"` 等：エラーコード `-11` ※ `"0x50"` 等の 16 進表記は `TryGetInt` により整数 `80` へ正常変換されます）が渡された場合、または 3 引数指定時に第 2 引数 `SendSrq` もしくは第 3 引数 `StatusByte` が空文字列（エラーコード `-10`）の場合は、`SetErrorAndHalt` によりエラーログを記録して安全停止します。また、`StatusByte` に `"0x..."` 形式で不正 16 進文字や `short` 範囲外（`"0xFFFF"` 等）を渡した場合は `Convert.ToInt16` の例外捕捉により `SetErrorAndHalt(-1, ex.Message)` で停止し、`"0x"` なしの非数値文字列（`"INVALID"` 等）を渡した場合は `short.TryParse` 失敗により `_log.LogError` を出力して停止せずリターンします。
+2. **ドライバ送出失敗・範囲外ボード番号時の非停止ログ記録**:
+   - 負の `BoardNum` 整数や上限超過のボード番号（例: `"0x50"`＝`80`）を指定した場合、またはスレーブモード非対応状態・ハードウェアエラーにより `GpibDLL.TrySendServiceRequest` が `false` を返した場合は `_log.LogError` を出力しますが、例外送出や強制停止は行わず次ステップへ進みます。
 
 ---
 

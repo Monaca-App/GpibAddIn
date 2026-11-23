@@ -39,7 +39,7 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "MEAS_VOLT_SIM", "RESULT_DATA"
@@ -111,5 +111,5 @@ sequenceDiagram
 
 | No | テストカテゴリ | テスト条件（入力値） | 期待される結果（出力値） | 検証の目的 / 観点 |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | 正常系 | 疑似応答文字列 `("+1.23456E+00")` を指定して実行 | `GpibDLL.DebugReceiveData` に指定文字列が設定される | デバッグ疑似受信データ注入の検証 |
-| **2** | 異常系 | 引数個数範囲外（2 引数以上）を指定して実行 | `ValidateParamRange` が失敗しエラーログを記録して安全停止する | 引数境界バリデーションと状態復元の検証 |
+| **1** | 正常系 | 疑似応答文字列 `("TestParamValue")` を指定して `Func` を実行 | `!HasError` かつ `GpibDLL.DebugReceiveData == "TestParamValue"` となる | デバッグ疑似受信データ注入の検証 |
+| **2** | 異常系 | 余剰引数 2 個 `("Val1", "ExtraInvalidArg")` を指定して `Func` を実行 | `HasError == true` かつ `IsCommandGo == false` となり安全停止する | 引数境界バリデーション（`ValidateParamRange(0, 1)`）と状態復元の検証 |

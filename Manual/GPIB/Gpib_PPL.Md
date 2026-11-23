@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_PPL** は、GPIB バスに対して **パラレルポール（Parallel Poll: NI-488.2 `ibrpp` 相当）** を実行し、最大 8 台のスレーブ機器がデータバス（DIO1〜DIO8）上に同時に出力する 1 ビットステータス応答を 1 バイト（8bit）で一括読み取り、指定ターゲット変数へ格納するコマンドです。
+**Gpib_PPL** は、GPIB バスに対して **パラレルポール（Parallel Poll）** を実行し、最大 8 台のスレーブ機器がデータバス（DIO1〜DIO8）上に同時に出力する 1 ビットステータス応答を 1 バイト整数値（`short`）として一括読み取り、指定ターゲット変数へ格納するコマンドです。
 
-> 💡 **補足**: 複数の測定器の状態を 1 回のバスサイクルで高速に一括チェックする IEEE 488 機能です。
+> 💡 **補足**: 複数の測定器の状態を 1 回のバスサイクルで高速に一括チェックする IEEE 488 機能です。1 引数短縮構文ではカレント機器のボード番号（未設定時は `0`）を使用し、2 引数構文では対象ボード番号を明示指定できます。
 
 ---
 
@@ -13,15 +13,19 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE, [ステップキー], Gpib_PPL, [BoardNumOrTarget], "[TargetKey]"
+; 短縮 1 引数構文（カレント機器のボード番号を使用）
+,SEQUENCE, [ステップキー], Gpib_PPL, [Target]
+
+; ボード明示 2 引数構文
+,SEQUENCE, [ステップキー], Gpib_PPL, [BoardNum], [TargetKey]
 ```
 
 ### パラメータ（引数）一覧
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` / `Target` | 2 引数指定時は対象 GPIB ボード番号、1 引数短縮指定時はパラレルポール応答バイト格納先キー（必須）。 | 整数ボード番号（例: `0`）または格納先 `PARAM` キー名 |
-| 引数2 | `TargetKey` | 2 引数指定時に 8bit パラレルポール応答値を格納するパラメータキー名（任意・1 引数時は省略）。 | 格納先 `PARAM` キー名 |
+| 引数1 | `BoardNumOrTarget` | `ParameterSpec` 定義は必須文字列（`RequireString("BoardNumOrTarget")`）。<br> **1 引数指定時** ：パラレルポール応答値（PPR）の格納先キー名（必須）。<br> **2 引数指定時** ：対象 GPIB ボード番号（`Func` 内で `TryGetInt` 整数検証を行い、非数値時はエラーコード `-11` で安全停止、負数指定時は `TryParallelPoll` が `false` を返してエラーログを記録し継続）。 | 格納先 `PARAM` キー名（1 引数時）、または `0` 以上の整数（2 引数時） |
+| 引数2 | `TargetKey` | **2 引数指定時** ：8bit パラレルポール応答値を格納するパラメータキー名（必須・1 引数時は省略）。 | 格納先 `PARAM` キー名 |
 
 ---
 
@@ -40,14 +44,14 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
-COMMAND, "SAMPLE_GPIB_PPL", ""
-,PARAM, "PPL_STATUS", Text, "PPL_STATUS", "0"
-,SEQUENCE, 010, Gpib_Open, "1"
-; バス上のパラレルポール応答バイトを一括取得して $PPL_STATUS へ格納
-,SEQUENCE, 020, Gpib_PPL, "$PPL_STATUS$"
+COMMAND, "SAMPLE_GPIB_PPL", "PPL_STATUS"
+,PARAM, "PPL_STATUS", Text, "パラレルポール応答", "0"
+,SEQUENCE, 010, Gpib_Open, 0
+; ボード 0 上のパラレルポール応答バイトを一括取得して PPL_STATUS へ格納
+,SEQUENCE, 020, Gpib_PPL, 0, "PPL_STATUS"
 ,SEQUENCE, 030, Gpib_Close
 ,SEQUENCE, 040, Exit
 ```
@@ -55,7 +59,7 @@ COMMAND, "SAMPLE_GPIB_PPL", ""
 ### 実行時の挙動・変数変化
 
 * **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
-* **実行後の状態**: `Gpib_PPL` により ATN と EOI が同時にアサート（IDY: Identify）され、DIO1〜DIO8 の状態バイトが読み取られて `$PPL_STATUS` および `SBuf` に格納されます。
+* **実行後の状態**: `Gpib_PPL` により `GpibDLL.TryParallelPoll` が実行され、DIO1〜DIO8 の状態応答値が 10 進文字列として `"PPL_STATUS"` に格納されます（※ `RecData` 受信バッファ自体は更新されません）。
 
 ---
 
@@ -64,24 +68,27 @@ COMMAND, "SAMPLE_GPIB_PPL", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_PPLCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (NI-488.2 ibrpp)"
-    participant SBuf as "GPIB 受信電文バッファ (SBuf)"
-    participant Var as "VariableManager (変数管理)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_PPLCommand"
+    participant Dll as "GpibDLL (TryParallelPoll)"
+    participant Var as "Gpib_ReceiveCommand.StoreTargetValue"
 
-    Script->>Cmd: Execute(context, target)
-    Cmd->>Drv: ParallelPoll() (ibrpp: ATN+EOI アサート読取)
-    alt パラレルポール成功
-        Drv-->>Cmd: ParallelPollByte (byte値)
-        Cmd->>SBuf: SetBuffer(pollByteStr)
-        opt Target ($ / @) 指定あり
-            Cmd->>Var: Target へ pollByteStr を格納
-        end
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(1, 2)
+    alt 2 引数指定時
+        Cmd->>Cmd: TryGetInt(BoardNum) & TargetKey 取得
+    else 1 引数指定時
+        Cmd->>Cmd: BoardNum = targetDevice?.BoardNum ?? 0 & Target 取得
+    end
+    Cmd->>Dll: TryParallelPoll(boardNum, out ppr)
+    alt パラレルポール成功 (true)
+        Dll-->>Cmd: ppr (short 応答値)
+        Cmd->>Var: StoreTargetValue(param, targetKey, ppr.ToString())
         Cmd-->>Script: 正常終了 (Next Step)
-    else バスエラーまたは未オープン
-        Drv-->>Cmd: GpibException 送出
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    else パラレルポール失敗 / 範囲外BoardNum (false)
+        Dll-->>Cmd: false
+        Cmd->>Cmd: _log.LogError (エラーログ記録のみ)
+        Cmd-->>Script: 次ステップへ継続
     end
 ```
 
@@ -89,10 +96,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **未オープン時の実行防止**:
-   - GPIB セッションが開かれていない状態で呼び出された場合は `InvalidOperationException` を送出します。
-2. **コントローラ権限エラーの検出**:
-   - Controller-In-Charge（CIC）権限がない場合は `GpibException` を送出して停止します。
+1. **引数個数（`1`〜`2`）およびボード番号の型検証**:
+   - `ValidateParamRange(1, 2)` 違反（0 引数または 3 引数以上）や、2 引数指定時の第 1 引数 `BoardNum` に整数変換できない非数値文字列が渡された場合、または格納先キー名が空文字列の場合は、`SetErrorAndHalt` によりエラーログを記録してシーケンスを安全停止します。
+2. **ドライバポーリング失敗・範囲外ボード番号時の非停止ログ記録**:
+   - 2 引数指定時に負の整数等の未登録ボード番号を指定した場合や、物理バスのパラレルポール実行（`GpibDLL.TryParallelPoll`）が失敗（`false`）した場合は `_log.LogError` を記録しますが、シーケンスは強制停止せず次ステップへ進みます。
 
 ---
 

@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_Reset** は、接続中の対象 GPIB デバイス（または指定アドレスの測定器）に対してデバイスクリア（SDC）および IEEE 488.2 標準リセットコマンド（`*RST;*CLS`）を送出し、測定器を工場出荷時（または既定）の初期測定状態へリセットするコマンドです。
+**Gpib_Reset** は、ドライバのハードウェアリセット／デバイスクリア API（`GpibDLL.TryResetDevice`）を呼び出し、現在選択されている対象 GPIB 機器（または第 1 引数で指定したボード・機器識別子）のハードウェア通信状態をリセットするコマンドです。
 
-> 💡 **補足**: 通信インターフェース層のリセット（SDC）と機器内部設定層のリセット（`*RST;*CLS`）を 1 ステップで確実に実行します。
+> 💡 **補足**: 本コマンドはドライバ層のハードウェアリセット API のみを実行し、SCPI コマンド文字列 `"*RST;*CLS"` の自動送信や内部受信バッファ（`RecData`）の消去は行いません。測定器内部の測定レンジ設定等も工場出荷状態へ戻したい場合は、後続ステップで [`Gpib_Send`](./Gpib_Send.Md)（`Gpib_Send, "*RST;*CLS"`）を併用してください。
 
 ---
 
@@ -13,14 +13,14 @@
 ### コマンド構文
 
 ```csv
-,SEQUENCE, [ステップキー], Gpib_Reset, "[DeviceAddress]"
+,SEQUENCE, [ステップキー], Gpib_Reset, "[TargetId]"
 ```
 
 ### パラメータ（引数）一覧
 
 | 引数位置 | パラメータ名 | 必須/任意 | 型・制約 | 説明 |
 | :---: | :--- | :---: | :--- | :--- |
-| 第1引数 | `DeviceAddress` | 任意 | 整数（`0`〜`30`） | リセット対象の GPIB プライマリアドレスを指定します。省略時は現在 `Gpib_Open` されている対象機器をリセットします。 |
+| 第1引数 | `DeviceAddress` / `BoardNum` | 任意 | 整数（`ParameterSpec`: `DeviceAddress` 既定値 `0`, `0`〜`30` / `Func`: 任意の整数） | リセット対象のボード番号または機器識別番号を指定します（`Func` 実行時は整数型検証のみ行い `(short)` へキャストして `GpibDLL.TryResetDevice` へ渡します）。省略時は現在選択中の対象機器の登録 ID（`targetDevice.EquipmentId`、未設定時は `0`）に対してリセットを実行します。 |
 
 ---
 
@@ -39,25 +39,27 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
-COMMAND, "SAMPLE_GPIB_RESET", ""
-,SEQUENCE, 010, Gpib_Open, "5"
-; 1. カレントデバイス(アドレス5)を完全リセットして初期状態に戻す
+COMMAND, "SAMPLE_GPIB_RESET", "VOLT_VAL"
+,PARAM, "VOLT_VAL", Work, "DC電圧測定値", ""
+,SEQUENCE, 010, Gpib_Open, 0
+; 1. カレント機器に対してドライバレベルのハードウェアリセットを実行し、続けて *RST;*CLS を送信
 ,SEQUENCE, 020, Gpib_Reset
-,SEQUENCE, 030, Wait, "200"
+,SEQUENCE, 030, Gpib_Send, "*RST;*CLS"
+,SEQUENCE, 040, Wait, "200"
 ; 2. 初期状態からDC電圧レンジを設定して測定実行
-,SEQUENCE, 040, Gpib_Send, "CONF:VOLT:DC 10"
-,SEQUENCE, 050, Gpib_SendReceive, "READ?", "@VOLT_VAL"
-,SEQUENCE, 060, Gpib_Close
-,SEQUENCE, 070, Exit
+,SEQUENCE, 050, Gpib_Send, "CONF:VOLT:DC 10"
+,SEQUENCE, 060, Gpib_SendReceive, "READ?", "VOLT_VAL"
+,SEQUENCE, 070, Gpib_Close
+,SEQUENCE, 080, Exit
 ```
 
 ### 実行時の挙動・変数変化
 
 * **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
-* **実行後の状態**: `Gpib_Reset` により、対象機器に対して Selected Device Clear（SDC）および `"*RST;*CLS"` が送出され、内部受信バッファ `SBuf` もクリアされます。
+* **実行後の状態**: `Gpib_Reset` によりカレント機器（`EquipmentId`）に対して `GpibDLL.TryResetDevice` が呼び出されてインターフェース通信状態がクリアされ、続く `Gpib_Send, "*RST;*CLS"` により測定器内部のパラメータも初期化されます。
 
 ---
 
@@ -66,20 +68,30 @@ COMMAND, "SAMPLE_GPIB_RESET", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_ResetCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (NI-488.2 / VISA)"
-    participant SBuf as "GPIB 受信電文バッファ (SBuf)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_ResetCommand"
+    participant Dll as "GpibDLL (TryResetDevice)"
 
-    Script->>Cmd: Execute(context, deviceAddr)
-    Cmd->>SBuf: Clear()
-    Cmd->>Drv: ResetDevice(deviceAddr) (SDC + "*RST;*CLS" 送出)
-    alt リセット成功
-        Drv-->>Cmd: リセット完了
-        Cmd-->>Script: 正常終了 (Next Step)
-    else バスエラーまたはアドレス範囲外
-        Drv-->>Cmd: GpibException / ArgumentOutOfRangeException
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 1)
+    alt 引数が 0〜1 個かつ数値変換成功の場合
+        alt 第1引数指定あり
+            Cmd->>Cmd: targetId = (short)id
+        else 引数省略時
+            Cmd->>Cmd: targetId = targetDevice?.EquipmentId ?? 0
+        end
+        Cmd->>Dll: TryResetDevice(targetId)
+        alt リセット成功 (true)
+            Dll-->>Cmd: true
+            Cmd-->>Script: 正常終了 (Next Step)
+        else ドライバエラー (false)
+            Dll-->>Cmd: false
+            Cmd->>Cmd: _log.LogError (エラーログ記録のみ)
+            Cmd-->>Script: 次ステップへ継続
+        end
+    else 非数値文字列 または 余剰引数指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -87,10 +99,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **アドレス範囲（`0`〜`30`）の検証**:
-   - 第 1 引数に `0`〜`30` 以外の数値が指定された場合は `ArgumentOutOfRangeException` を送出します。
-2. **未接続時のエラー通知**:
-   - デバイスがオープンされておらず第 1 引数も省略されている場合は、`InvalidOperationException` を送出します。
+1. **引数個数（`0`〜`1`）および整数型の事前検証**:
+   - `ValidateParamRange(0, 1)` 違反（2 個以上の引数指定）または第 1 引数に整数へ変換できない文字列（`"INVALID"` 等）が指定された場合は、`SetErrorAndHalt` によりエラーログを記録して安全停止します。
+2. **ドライバリセット失敗時の非停止ログ記録**:
+   - ハードウェアリセット API（`GpibDLL.TryResetDevice`）が `false` を返した場合は `_log.LogError` を出力しますが、例外クラッシュや強制停止は行わず次ステップへ継続します。
 
 ---
 

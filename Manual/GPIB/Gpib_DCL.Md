@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_DCL** は、GPIB バス上の全測定器に対してユニバーサルコマンド **DCL（Device Clear: `0x14`）** を一斉送出し、バスに接続されているすべてのデバイスの入出力バッファおよびコマンドパーサを初期状態へクリアするコマンドです。
+**Gpib_DCL** は、オープン中の全 GPIB ボードに対してユニバーサルコマンド **DCL（Device Clear: `0x14`）** を一斉送出し、バスに接続されているすべてのデバイスの入出力バッファおよびコマンドパーサを初期状態へクリアするコマンドです。
 
-> 💡 **補足**: 特定の 1 台のみをクリアしたい場合は [`Gpib_SDC`](./Gpib_SDC.Md) を使用し、バス上の全測定器を一括クリアしたい場合は本 `Gpib_DCL` を使用します。
+> 💡 **補足**: 特定の選択中機器 1 台のみをクリアしたい場合は [`Gpib_SDC`](./Gpib_SDC.Md) を使用し、バス上の全測定器を一括クリアしたい場合は本 `Gpib_DCL` を使用します（CONTEC ドライバおよび Interface ドライバ双方でバス全体の DCL と機器単体の SDC は明確に分離されています）。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` | DCL（Device Clear）ユニバーサルコマンドを送出する GPIB ボード番号（任意・省略時既定値: `0`）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数1 | `BoardNum` | DCL（Device Clear）を送出する GPIB ボード番号（任意・省略時既定値: `0`）。※引数バリデーション（`0` 以上の整数）のみ行われ、実際の送出はオープン中の全 GPIB ボードに対して一括実行されます。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
 
 ---
 
@@ -39,17 +39,18 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
-COMMAND, "SAMPLE_GPIB_DCL", ""
-,SEQUENCE, 010, Gpib_Open, "1"
+COMMAND, "SAMPLE_GPIB_DCL", "DEV_ID"
+,PARAM, "DEV_ID", Work, "機器識別情報", ""
+,SEQUENCE, 010, Gpib_Open, 0
 ,SEQUENCE, 020, Gpib_IFC
 ,SEQUENCE, 030, Gpib_REN, "ON"
 ; バス上の全測定器のGPIBバッファを一括クリア(DCL)して測定準備を整える
 ,SEQUENCE, 040, Gpib_DCL
 ,SEQUENCE, 050, Wait, "100"
-,SEQUENCE, 060, Gpib_SendReceive, "*IDN?", "@DEV_ID"
+,SEQUENCE, 060, Gpib_SendReceive, "*IDN?", "DEV_ID"
 ,SEQUENCE, 070, Gpib_Close
 ,SEQUENCE, 080, Exit
 ```
@@ -57,7 +58,7 @@ COMMAND, "SAMPLE_GPIB_DCL", ""
 ### 実行時の挙動・変数変化
 
 * **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
-* **実行後の状態**: `Gpib_DCL` により ATN ラインアサート状態で `0x14`（DCL）が送出され、GPIB バス上の全機器の未読出力キューや構文エラー状態がリセットされます。
+* **実行後の状態**: `Gpib_DCL` によりオープン中の全 GPIB ボードからユニバーサルコマンド DCL（Interface ドライバ時はボード ID に対する `PciGpibExExecDevClear`）が送出され、GPIB バス上の全機器の未読出力キューや構文エラー状態がリセットされます。
 
 ---
 
@@ -66,18 +67,26 @@ COMMAND, "SAMPLE_GPIB_DCL", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_DCLCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (DeviceClearAll / ibcmd 0x14)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_DCLCommand"
+    participant Parent as "IGpibAnalysisParent (GpibMainForm)"
+    participant Dll as "GpibDLL / IGpibDriver"
 
-    Script->>Cmd: Execute(context)
-    Cmd->>Drv: DeviceClearAll() (DCL 0x14 送出)
-    alt バスコマンド送出成功
-        Drv-->>Cmd: 全機器クリア完了
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 1) & TryGetInt(BoardNum >= 0)
+    alt 引数バリデーション成功
+        alt メイン画面連携時 (parent != null)
+            Cmd->>Parent: SendGpibDclAsync()
+            Parent->>Dll: SendGpibDcl() (接続中全ボードへDCL送出)
+            Dll-->>Parent: 送出完了
+        else ヘッドレス実行時 (parent == null)
+            Cmd->>Dll: SendGpibDcl()
+            Dll-->>Cmd: 送出完了
+        end
         Cmd-->>Script: 正常終了 (Next Step)
-    else バスエラーまたは未オープン
-        Drv-->>Cmd: GpibException 送出
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    else 負数・非数値・余剰引数指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -85,10 +94,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **未オープン時の実行防止**:
-   - GPIB ボード・セッションが初期化されていない状態で呼び出された場合は `InvalidOperationException` を送出します。
-2. **バスエラー監視**:
-   - バス上にリスナーが 1 台も存在しない場合（`ENOL`）やタイムアウト発生時は `GpibException` を送出して停止します。
+1. **引数境界・型バリデーション保護**:
+   - `ValidateParamRange(0, 1)` 違反（2 個以上の引数指定）または `BoardNum` に負数・非数値文字列が指定された場合は、`SetErrorAndHalt` によりエラーログを出力してシーケンスを安全停止します。
+2. **未接続・物理ドライバエラー時の継続設計**:
+   - ポート未接続時（`CanSendDcl == false`）は物理送出を安全にスキップします。また、ドライバ API がエラーコードを返した場合は `GpibDLL` 内でエラーログを記録しますが、例外クラッシュや強制停止は行わず次ステップへ継続します（予期せぬランタイム例外発生時のみ `_log.LogCritical` と `SetErrorAndHalt(-1, ex.Message)` で安全停止します）。
 
 ---
 

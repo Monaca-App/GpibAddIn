@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_LLO** は、GPIB バス上の全測定器に対してユニバーサルコマンド **LLO（Local Lockout: `0x11`）** を送出し、測定器本体のフロントパネルにある「LOCAL」キー操作によるローカル復帰を禁止（ロックアウト）するコマンドです。
+**Gpib_LLO** は、オープン中の全 GPIB ボードに対してユニバーサルコマンド **LLO（Local Lockout: `0x11`）** を送出し、測定器本体のフロントパネルにある「LOCAL」キー操作によるローカル復帰を禁止（ロックアウト）するコマンドです。
 
-> 💡 **補足**: 自動計測シーケンス実行中に作業者が誤って測定器のフロントパネルボタンに触れて設定が変わってしまう事故を防止するために使用します。解除には [`Gpib_GTL`](./Gpib_GTL.Md) または `Gpib_REN, "OFF"` を使用します。
+> 💡 **補足**: 自動計測シーケンス実行中に作業者が誤って測定器のフロントパネルボタンに触れて設定が変わってしまう事故を防止するために使用します。解除には個別機器ローカル復帰の [`Gpib_GTL`](./Gpib_GTL.Md) またはバス全体の REN ラインをオフにする [`Gpib_REN`](./Gpib_REN.Md)（`Gpib_REN, "OFF"`）を使用します。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` | LLO（Local Lockout）ユニバーサルコマンドを送出する GPIB ボード番号（任意・省略時既定値: `0`）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数1 | `BoardNum` | LLO（Local Lockout）ユニバーサルコマンドを送出する GPIB ボード番号（任意・省略時既定値: `0`）。※引数バリデーション（`0` 以上の整数）のみ行われ、実際の送出はオープン中の全 GPIB ボードに対して一括実行されます。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
 
 ---
 
@@ -39,17 +39,18 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
-COMMAND, "SAMPLE_GPIB_LLO", ""
-,SEQUENCE, 010, Gpib_Open, "5"
+COMMAND, "SAMPLE_GPIB_LLO", "V_RES"
+,PARAM, "V_RES", Work, "電圧測定結果", ""
+,SEQUENCE, 010, Gpib_Open, 0
 ,SEQUENCE, 020, Gpib_REN, "ON"
 ; 1. 測定中にパネル操作されないようローカルロックアウト(LLO)を送出
 ,SEQUENCE, 030, Gpib_LLO
-,SEQUENCE, 040, Gpib_SendReceive, "MEAS:VOLT:DC?", "@V_RES"
-; 2. 測定終了後にGTL(Go To Local)でパネル操作ロックを解除
-,SEQUENCE, 050, Gpib_GTL
+,SEQUENCE, 040, Gpib_SendReceive, "MEAS:VOLT:DC?", "V_RES"
+; 2. 測定終了後にREN OFF(またはGpib_GTL)でパネル操作ロックを解除
+,SEQUENCE, 050, Gpib_REN, "OFF"
 ,SEQUENCE, 060, Gpib_Close
 ,SEQUENCE, 070, Exit
 ```
@@ -57,7 +58,7 @@ COMMAND, "SAMPLE_GPIB_LLO", ""
 ### 実行時の挙動・変数変化
 
 * **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
-* **実行後の状態**: `Gpib_LLO` の実行により ATN ラインアサート状態で `0x11`（LLO）がバス送出され、測定器の「LOCAL」ボタンが無効化されます。 `Gpib_GTL`（または `Gpib_REN, "OFF"`）によりロックアウトが解除され、手動操作が可能になります。
+* **実行後の状態**: `Gpib_LLO` の実行によりオープン中の全 GPIB ボードから LLO（`0x11`）が送出され、測定器の「LOCAL」ボタンが無効化されます。続く `Gpib_REN, "OFF"`（または [`Gpib_GTL`](./Gpib_GTL.Md)）によりロックアウトが解除され、手動操作が可能になります。
 
 ---
 
@@ -66,18 +67,26 @@ COMMAND, "SAMPLE_GPIB_LLO", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_LLOCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (SendLLO / ibcmd 0x11)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_LLOCommand"
+    participant Parent as "IGpibAnalysisParent (GpibMainForm)"
+    participant Dll as "GpibDLL / IGpibDriver"
 
-    Script->>Cmd: Execute(context)
-    Cmd->>Drv: SendLocalLockout()
-    alt バスコマンド送出成功
-        Drv-->>Cmd: LLO (0x11) 送出完了
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 1) & TryGetInt(BoardNum >= 0)
+    alt 引数バリデーション成功
+        alt メイン画面連携時 (parent != null)
+            Cmd->>Parent: BtnLLOSend()
+            Parent->>Dll: SendGpibLlo() (接続中全ボードへLLO送出)
+            Dll-->>Parent: LLO 送出完了
+        else ヘッドレス実行時 (parent == null)
+            Cmd->>Dll: SendGpibLlo()
+            Dll-->>Cmd: LLO 送出完了
+        end
         Cmd-->>Script: 正常終了 (Next Step)
-    else バスエラーまたは未オープン
-        Drv-->>Cmd: GpibException 送出
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    else 負数・非数値・余剰引数指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -85,10 +94,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **未オープン時の実行防止**:
-   - GPIB セッションが開かれていない状態で実行された場合は `InvalidOperationException` を送出します。
-2. **終了時のロック解除推奨**:
-   - `Gpib_LLO` を使用したシーケンスでは、終了前に `Gpib_GTL` または `Gpib_REN, "OFF"` を実行して測定器を手動操作可能状態へ戻す設計を推奨します。
+1. **引数境界・型バリデーション保護**:
+   - `ValidateParamRange(0, 1)` 違反（2 個以上の引数指定）または第 1 引数 `BoardNum` に負数・非数値文字列が指定された場合は、`SetErrorAndHalt` によりエラーログを記録して安全停止します。
+2. **未接続時のスキップと終了時のロック解除推奨**:
+   - ポート未接続時（`CanSendLlo == false`）は送出を安全にスキップします。また、`Gpib_LLO` を使用したシーケンスでは、終了前に `Gpib_REN, "OFF"` または `Gpib_GTL` を実行して測定器を手動操作可能状態へ戻す設計を推奨します。
 
 ---
 

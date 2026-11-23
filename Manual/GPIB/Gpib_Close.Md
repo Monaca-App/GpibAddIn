@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_Close** は、現在オープンされている GPIB デバイスディスクリプタ（およびインターフェースボードハンドル）をオフライン化して解放し、GPIB 通信セッションを安全に終了するコマンドです。
+**Gpib_Close** は、現在オープンされているすべての GPIB インターフェースボードおよび通信セッションをクローズして解放し、GPIB 通信を安全に切断するコマンドです。
 
-> 💡 **補足**: NI-488.2 の `ibonl(ud, 0)` 相当のハンドル解放処理を行い、他のアプリケーションが GPIB バスを使用できる状態に戻します。
+> 💡 **補足**: CONTEC ドライバ（`CGPIB.DLL`）および Interface ドライバ（`gpc4304.dll`）のボード終了処理を `GpibDLL` 経由で一括実行し、メイン画面接続時はポート状態ランプを切断状態（赤 LED 点灯・REN OFF）へ更新します。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardNum` | 切断・オフライン化する対象の GPIB インターフェースボード番号（任意・省略時既定値: `0`）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数1 | `BoardNum` | 切断対象の GPIB インターフェースボード番号（任意・省略時既定値: `0`）。※引数バリデーション（`0` 以上の整数）のみ行われ、実際の切断処理はオープン中の全 GPIB ボードに対して一括実行されます。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
 
 ---
 
@@ -39,14 +39,14 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "GPIB_SESSION_END", "IDN_RES"
 ,PARAM, "IDN_RES", Work, "機器識別情報", ""
 ,SEQUENCE, 010, Gpib_Open, 0
 ,SEQUENCE, 020, Gpib_SendReceive, "*IDN?", "IDN_RES"
-; 測定完了後にローカル制御へ戻して GPIB ボード 0 を安全にクローズ
+; 測定完了後にローカル制御へ戻して GPIB 通信ポートを安全にクローズ
 ,SEQUENCE, 030, Gpib_GTL
 ,SEQUENCE, 040, Gpib_Close, 0
 ,SEQUENCE, 050, Exit
@@ -54,8 +54,8 @@ COMMAND, "GPIB_SESSION_END", "IDN_RES"
 
 ### 実行時の挙動・変数変化
 
-* **実行前の状態**: GPIB ボード `0` がオープンされ、測定器との通信セッションが確立されている状態。
-* **実行後の状態**: ステップ `040` の `Gpib_Close` 実行により GPIB ボードハンドルが解放され、接続ステータスがオフラインへ遷移します（取得済みの `"IDN_RES"` や `SBuf` データは保持されます）。
+* **実行前の状態**: GPIB ボードがオープンされ、測定器との通信セッションが確立されている状態。
+* **実行後の状態**: ステップ `040` の `Gpib_Close` 実行により全 GPIB ボードハンドルが解放され、接続ステータスがクローズ状態へ遷移します（取得済みの `"IDN_RES"` や受信バッファ `RecData` は保持されます）。
 
 ---
 
@@ -64,18 +64,26 @@ COMMAND, "GPIB_SESSION_END", "IDN_RES"
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_CloseCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (NI-488.2 / VISA)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_CloseCommand"
+    participant Parent as "IGpibAnalysisParent (GpibMainForm)"
+    participant Dll as "GpibDLL / IGpibDriver"
 
-    Script->>Cmd: Execute(context)
-    Cmd->>Drv: IsOpen 状態確認
-    alt デバイスがオープン中の場合
-        Cmd->>Drv: CloseDevice() / ibonl(0)
-        Drv-->>Cmd: ハンドル解放完了
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 1) & TryGetInt(BoardNum >= 0)
+    alt 引数バリデーション成功
+        alt メイン画面連携時 (parent != null)
+            Cmd->>Parent: CloseGpibConnection()
+            Parent->>Dll: CloseGpibBoards()
+            Parent-->>Cmd: UI状態更新 (REN Off / 赤LED点灯)
+        else ヘッドレス実行時 (parent == null)
+            Cmd->>Dll: CloseGpibBoards()
+            Dll-->>Cmd: ボード解放完了
+        end
         Cmd-->>Script: 正常終了 (Next Step)
-    else 既にクローズ済みの場合
-        Cmd-->>Script: 何もしないで正常終了 (No-Op)
+    else 負数・非数値・余剰引数指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -83,10 +91,12 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **未オープン時の安全な無視（No-Op 保証）**:
-   - `Gpib_Open` されていない状態で `Gpib_Close` を実行してもエラーにはならず、安全に正常終了します。
-2. **受信バッファ（`SBuf`）データの保持**:
-   - `Gpib_Close` 実行後も、すでに `SBuf` に格納されている受信データは消去されず、後続の `Set_Data` 等で参照可能です。
+1. **引数境界・型バリデーション保護**:
+   - `ValidateParamRange(0, 1)` により 2 個以上の引数が指定された場合、または第 1 引数 `BoardNum` に負数（`"-1"` 等）や非数値文字列が指定された場合は、`_log.LogError` を記録し `SetErrorAndHalt` によりシーケンスを安全停止します。
+2. **未オープン時の安全なクローズ処理**:
+   - ポート未接続状態で `Gpib_Close` を実行してもクラッシュせず、安全にクローズ状態へ整えて正常終了します。
+3. **取得済み受信データの保持**:
+   - `Gpib_Close` 実行後も、すでにパラメータ変数や `RecData` に格納されている受信データは消去されず、後続の `Set_Data` 等で参照可能です。
 
 ---
 

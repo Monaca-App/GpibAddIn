@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_Init** は、PC 側の GPIB インターフェースボード（`GPIB0` 等）をシステムコントローラ（Controller-In-Charge）として初期化し、IFC（Interface Clear）送出および REN（Remote Enable）ライン有効化を一括で実行するボード初期化コマンドです。
+**Gpib_Init** は、現在選択されている対象 GPIB 機器（`GpibDevice`）をドライバへ登録（`GpibDLL.RegisterGpibEquipment`）し、機器固有のデリミタおよび EOI 設定をハードウェアへ反映（`GpibDLL.TrySetDelimiterConfig`）するデバイス初期化コマンドです。
 
-> 💡 **補足**: シーケンス開始時に GPIB バス全体をクリーンな初期状態へセットアップする際に使用します。
+> 💡 **補足**: 本コマンド単体では IFC（Interface Clear）送出や REN（Remote Enable）ライン変更、受信バッファクリアは行いません。バス全体のポートオープン・IFC/DCL/REN 一括初期化を行う場合は [`Gpib_Open`](./Gpib_Open.Md) を使用し、個別機器のハンドル再登録やデリミタ設定の再適用を行いたい場合に本 `Gpib_Init` を使用します。
 
 ---
 
@@ -20,7 +20,7 @@
 
 | 引数位置 | パラメータ名 | 必須/任意 | 型・制約 | 説明 |
 | :---: | :--- | :---: | :--- | :--- |
-| 第1引数 | `BoardIndex` | 任意 | 整数（`0` 以上、既定値: `0`） | 初期化する GPIB インターフェースボードのインデックス番号（`GPIB0` は `0`）を指定します。 |
+| 第1引数 | `BoardIndex` | 任意 | 整数（`0` 以上、既定値: `0`） | 互換性のための任意ボードインデックス番号です（`0` 以上の整数であるか検証のみ行われ、実際の機器登録・デリミタ設定は現在の実行対象 `GpibDevice` の設定値を用いて実行されます）。 |
 
 ---
 
@@ -39,23 +39,25 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（;）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
-COMMAND, "SAMPLE_GPIB_INIT", ""
-; 1. GPIBボード0を初期化し、バス上の機器を検索してからオープン
-,SEQUENCE, 010, Gpib_Init, "0"
-,SEQUENCE, 020, Gpib_Find, "@DEVICES"
-,SEQUENCE, 030, Gpib_Open, "5"
-,SEQUENCE, 040, Gpib_SendReceive, "*IDN?", "@IDN"
+COMMAND, "SAMPLE_GPIB_INIT", "IDN"
+,PARAM, "DEVICES", Work, "検出機器一覧", ""
+,PARAM, "IDN", Work, "機器識別情報", ""
+; 1. GPIBボードをオープンし、カレント機器の登録・デリミタ設定(Gpib_Init)およびバス探索を実行
+,SEQUENCE, 010, Gpib_Open, 0
+,SEQUENCE, 020, Gpib_Init, 0
+,SEQUENCE, 030, Gpib_Find, 0, "DEVICES"
+,SEQUENCE, 040, Gpib_SendReceive, "*IDN?", "IDN"
 ,SEQUENCE, 050, Gpib_Close
 ,SEQUENCE, 060, Exit
 ```
 
 ### 実行時の挙動・変数変化
 
-* **実行前の状態**: GPIB 通信環境および対象コマンドの PARAM 初期値が設定され、ステップ実行待機中である状態。
-* **実行後の状態**: `Gpib_Init, "0"` により `GPIB0` ボードが初期化され、IFC パルス送出・REN アサート・内部受信バッファ（`SBuf`）のクリアが一括で行われます。
+* **実行前の状態**: GPIB ボードがオープンされ、対象コマンドの実行対象デバイス（`GpibDevice`）が選択されている状態。
+* **実行後の状態**: `Gpib_Init, 0` によりカレント機器が `GpibDLL.RegisterGpibEquipment` でドライバへ登録され、`GpibDLL.TrySetDelimiterConfig` により機器プロパティのデリミタ・EOI 設定が適用されます。
 
 ---
 
@@ -64,20 +66,27 @@ COMMAND, "SAMPLE_GPIB_INIT", ""
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_InitCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (SendIFC / ibsic / ibsre)"
-    participant SBuf as "GPIB 受信電文バッファ (SBuf)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_InitCommand"
+    participant Dll as "GpibDLL / IGpibDriver"
 
-    Script->>Cmd: Execute(context, boardIndex)
-    Cmd->>SBuf: Clear()
-    Cmd->>Drv: InitializeBoard(boardIndex) (IFC送出 + REN有効化)
-    alt ボード初期化成功
-        Drv-->>Cmd: 初期化完了
-        Cmd-->>Script: 正常終了 (Next Step)
-    else GPIBボード未接続 または ドライバ未導入 (EDVR)
-        Drv-->>Cmd: GpibException (EDVR)
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(0, 1) & TryGetInt(BoardIndex >= 0)
+    alt 引数バリデーション成功
+        Cmd->>Cmd: CanInitialize(targetDevice) 判定
+        alt 対象機器 (targetDevice) が有効な場合
+            Cmd->>Dll: RegisterGpibEquipment(targetDevice)
+            Dll-->>Cmd: EquipmentId 割り当て・登録完了
+            Cmd->>Dll: TrySetDelimiterConfig(targetDevice)
+            Dll-->>Cmd: デリミタ・EOI 設定反映完了
+            Cmd-->>Script: 正常終了 (Next Step)
+        else 対象機器が未設定 (null) の場合
+            Cmd->>Cmd: SetErrorAndHalt(-1) (エラーログ記録)
+            Cmd-->>Script: 安全停止 (IsCommandGo = false)
+        end
+    else 負数・非数値・余剰引数指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -85,10 +94,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **ボード番号の検証**:
-   - 負のボードインデックス番号が指定された場合は `ArgumentOutOfRangeException` を送出します。
-2. **ハードウェア不在時の明確なエラー通知**:
-   - 指定された GPIB ボード（PCIe / USB-GPIB アダプタ等）が PC に認識されていない場合は、`GpibException` を送出してハードウェア未接続を通知します。
+1. **引数境界およびボード番号（`0` 以上）の事前検証**:
+   - `ValidateParamRange(0, 1)` 違反（2 個以上の引数指定）または第 1 引数 `BoardIndex` に負数（`"-1"` 等）や非数値文字列が指定された場合は、`SetErrorAndHalt` によりエラーログを記録して安全停止します。
+2. **対象機器未設定（`null`）時の安全停止ガード**:
+   - 実行対象の `GpibDevice` が存在しない状態（`CanInitialize(device) == false`）で呼び出された場合は、ハードウェア API を呼ばずに `_log.LogError` を記録し、`SetErrorAndHalt(-1, ...)` でシーケンスを安全停止します。
 
 ---
 

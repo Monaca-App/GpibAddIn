@@ -2,9 +2,9 @@
 
 ## 概要
 
-**Gpib_ReadRegisterByte** は、GPIB コントローラチップ（NEC µPD7210 / NAT9914 / TNT4882 互換レジスタまたはドライバステータス領域）の指定オフセットアドレスから 1 バイト（8bit）のレジスタ値を直接読み取り、指定ターゲット変数へ格納する低レベル診断・制御コマンドです。
+**Gpib_ReadRegisterByte** は、 **Interface 社製 GPIB ドライバ（`gpc4304.dll`）専用** の低レベル診断・制御コマンドであり、指定した GPIB ボード上のコントローラチップ物理レジスタの指定オフセットアドレスから 1 バイト（8bit）の値を直接読み取り、指定ターゲット変数へ 10 進文字列として格納します。
 
-> 💡 **補足**: 通常の SCPI 通信では使用しませんが、GPIB バスライン状態（ISR1 / ISR2 / ADSR / BSR 等のハードウェアレジスタ）の詳細診断や特殊ハンドシェイク解析を行う際に使用します。
+> 💡 **補足（ドライバメーカー制限）**: 本コマンドは Interface 社製ドライバ（`gpc4304.dll`）およびデバッグシミュレーションモード（`DebugDLL == true`：テスト用固定値 `0x5A`＝`"90"` を返却）に対応しています。CONTEC 社製ドライバ（`CGPIB.DLL`）選択時に実行した場合は、未サポートエラーコード（`-5`）をログ出力して停止せず次ステップへ継続します。
 
 ---
 
@@ -20,9 +20,9 @@
 
 | 引数位置 | 引数名 | 説明 | 指定方法 / 有効な入力値 |
 | :--- | :--- | :--- | :--- |
-| 引数1 | `BoardId` | 読み取り対象の GPIB コントローラボード番号（必須）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
-| 引数2 | `Offset` | 読み取り対象のコントローラ ASIC 物理レジスタオフセット番号（必須）。 | 整数または 16 進表記（例: `"0"`, `"0x04"`） |
-| 引数3 | `DestKey` | 読み取った 1 バイト値を格納する対象パラメータキー名（必須）。 | 格納先 `PARAM` キー名 |
+| 引数1 | `BoardId` | 読み取り対象の GPIB コントローラボード番号（必須。`ParameterSpec` 上の制約は `0` 以上、`Func` 実行時は整数型検証を行い `(short)` キャストしてドライバ API へ渡します）。 | `0` 以上の整数（例: `0`）または `$PARAM$` 置換 |
+| 引数2 | `Offset` | 読み取り対象のコントローラ ASIC 物理レジスタオフセット番号（非空必須）。※空文字 `""`（または空白）を渡した場合は `TryGetString` によりエラーコード `-10` で安全停止し、`"INVALID"` 等の非空・非数値文字列の場合に `ParseNumber` により `0` にフォールバックします。 | 10 進整数または `"0x"` 付き 16 進表記（例: `"4"`, `"0x04"`） |
+| 引数3 | `DestKey` | 読み取った 1 バイト値（`0`〜`255` の 10 進文字列）を格納する対象パラメータキー名（必須）。 | 格納先 `PARAM` キー名 |
 
 ---
 
@@ -41,13 +41,13 @@
 
 ### スクリプト記述例
 
-※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマから開始し、スペースインデントや行末コメント（`;`）は記述しないでください。
+※COMMAND ブロック配下の子要素行（PARAM, SEQUENCE）は必ず行頭カンマ（`,`）から開始してください（行頭スペースのみでは認識されません）。なお、`;` で始まる行やクォート外の `;` 以降はコメントとして自動除去されます。
 
 ```csv
 COMMAND, "READ_ASIC_ADSR", "ADSR_VAL"
 ,PARAM, "ADSR_VAL", Work, "レジスタ読取値", "0"
 ,SEQUENCE, 010, Gpib_Open, 0
-; ボード 0 のオフセット 0x04 レジスタを 1 バイト読み取り ADSR_VAL へ格納
+; ボード 0 のオフセット 0x04 レジスタを 1 バイト読み取り ADSR_VAL へ格納 (Interface 専用)
 ,SEQUENCE, 020, Gpib_ReadRegisterByte, 0, "0x04", "ADSR_VAL"
 ,SEQUENCE, 030, Gpib_Close, 0
 ,SEQUENCE, 040, Exit
@@ -56,7 +56,7 @@ COMMAND, "READ_ASIC_ADSR", "ADSR_VAL"
 ### 実行時の挙動・変数変化
 
 * **実行前の状態**: GPIB ボード `0` がオープン済みで、`"ADSR_VAL"` が `"0"` の状態。
-* **実行後の状態**: ステップ `020` の実行によりオフセット `0x04` の物理レジスタ 1 バイト値が読み出され、`"ADSR_VAL"` に格納されます。
+* **実行後の状態**: ステップ `020` の実行によりオフセット `0x04` の物理レジスタ 1 バイト値が読み出され、10 進整数文字列（デバッグシミュレーション時は `"90"`）として `"ADSR_VAL"` に格納されます。
 
 ---
 
@@ -65,21 +65,28 @@ COMMAND, "READ_ASIC_ADSR", "ADSR_VAL"
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Script as "スクリプト実行エンジン (SequenceRunner)"
-    participant Cmd as "Gpib_ReadRegisterByteCommand (GpibAnalysis.GPIB)"
-    participant Drv as "IGpibDriverAdapter (ReadRegisterByte)"
-    participant Var as "VariableManager (変数管理)"
+    participant Script as "シーケンス実行エンジン"
+    participant Cmd as "Gpib_ReadRegisterByteCommand"
+    participant Dll as "GpibDLL.PciGpibExReadRegisterByte"
+    participant Var as "Gpib_ReceiveCommand.StoreTargetValue"
 
-    Script->>Cmd: Execute(context, regOffset, target)
-    Cmd->>Cmd: regOffset の数値パース・範囲検証
-    Cmd->>Drv: ReadRegisterByte(regOffset)
-    alt レジスタ読取成功
-        Drv-->>Cmd: registerByte (byte値)
-        Cmd->>Var: Target ($ / @) へ格納
-        Cmd-->>Script: 正常終了 (Next Step)
-    else 不正オフセット または ドライバ未対応
-        Drv-->>Cmd: GpibException / ArgumentOutOfRangeException
-        Cmd-->>Script: エラーログ出力・シーケンス停止
+    Script->>Cmd: Func(parent, param)
+    Cmd->>Cmd: ValidateParamRange(3, 3) & TryGetInt(BoardId) & TryGetString(Offset, 非空) & DestKey 取得
+    alt 3 引数かつ BoardId が整数・Offset / DestKey が非空の場合
+        Cmd->>Cmd: ParseNumber(Offset) (10進 / 0x16進変換、非空の非数値時は 0)
+        Cmd->>Dll: PciGpibExReadRegisterByte((short)boardId, offset, ref data)
+        alt 読出成功 (戻り値 == 0 : Interface ドライバ / DebugDLL)
+            Dll-->>Cmd: result = 0, data (byte)
+            Cmd->>Var: StoreTargetValue(param, destKey, data.ToString())
+            Cmd-->>Script: 正常終了 (Next Step)
+        else ドライバ未対応 (CONTEC: -5) または読出失敗 (戻り値 != 0)
+            Dll-->>Cmd: result != 0
+            Cmd->>Cmd: _log.LogError (エラーログ記録のみ)
+            Cmd-->>Script: 次ステップへ継続
+        end
+    else 引数個数不一致 または 非数値 BoardId / 空 Offset / 空 DestKey 指定時
+        Cmd->>Cmd: SetErrorAndHalt (エラーログ記録)
+        Cmd-->>Script: 安全停止 (IsCommandGo = false)
     end
 ```
 
@@ -87,10 +94,10 @@ sequenceDiagram
 
 ## 🚫 エラーハンドリング・安全設計（仕様制限）
 
-1. **不正なオフセットアドレスの防止**:
-   - 負のオフセット値やハードウェアレジスタ空間外のアドレスが指定された場合は、`ArgumentOutOfRangeException` を送出してメモリアクセス違反を防止します。
-2. **ターゲット引数必須チェック**:
-   - 格納先ターゲット（第 2 引数）が省略された場合は `ArgumentException` を送出します。
+1. **3 引数必須および `BoardId`・非空文字列バリデーション保護**:
+   - `ValidateParamRange(3, 3)` により引数が 3 個ちょうどでない場合（エラーコード `-10`）、第 1 引数 `BoardId` に整数変換できない非数値文字列が指定された場合（エラーコード `-11`）、または第 2 引数 `Offset` もしくは第 3 引数 `DestKey` に空文字（空白）が指定された場合（`TryGetString` エラーコード `-10`）は、`SetErrorAndHalt` によりエラーログを記録して安全停止します。
+2. **CONTEC ドライバ環境および物理読出失敗時の非停止ログ記録**:
+   - CONTEC ドライバ環境で実行された場合（ドライバ戻り値 `-5`）や、範囲外ボード ID 指定等による実機読出失敗時（戻り値 `!= 0`）は `_log.LogError` を記録しますが、例外送出や強制停止は行わず次ステップへ継続します（なお `DebugDLL == true` 時はテスト用固定値 `"90"` が格納されます）。また、`Offset` に `"INVALID"` 等の非空・非数値文字列が渡された場合は `ParseNumber` が安全に `0` を返します。
 
 ---
 
