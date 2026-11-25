@@ -40,7 +40,7 @@
 4. **多重起動禁止（シングルインスタンス保護）**:
    * GPIB 通信制御のメイン画面は、通信バスの競合や排他エラーを防止するためシステム全体で **多重起動禁止** に統一されています。Excel アドインから起動する場合も既存の画面が自動的に前面表示されます。
 5. **オフラインマニュアル・サンプルの標準インストール連携**:
-   * インストーラーにより HTML 形式の取扱説明書一式は `C:\Program Files (x86)\Monacaアプリ工房\Monaca html\Apr\` に、サンプルマクロ・AI プロンプト群は `C:\Program Files (x86)\Monacaアプリ工房\Monaca Sample\` に配置され、デスクトップの `Monaca\Manual\` および `Monaca\Sample` ショートカットからすぐに参照できます。
+   * インストーラーにより HTML 形式の取扱説明書一式は `C:\Program Files (x86)\Monaca_App_Store\Monaca html\Apr\` に、サンプルマクロ・AI プロンプト群は `C:\Program Files (x86)\Monaca_App_Store\Monaca Sample\` に配置され、デスクトップの `Monaca\Manual\` および `Monaca\Sample` ショートカットからすぐに参照できます。
 
 ### 🚀 はじめての GPIB 自動測定シート作成（4 ステップ具体例）
 Excel アドインを初めて使う方は、以下の 4 ステップで「機器オープン → 測定コマンド実行 → クローズ」の自動測定シートを作成できます（実機ボードが無い PC でも、メイン画面で `[環境設定...] ➔ [デバッグ]` を ON にすればそのまま体験できます）。
